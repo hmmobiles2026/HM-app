@@ -120,7 +120,7 @@ async function getAnalyticsData() {
     weeklyData,
     monthlyData,
     topProducts: topProductsWithNames,
-    brandSales: brandSales.map((b) => ({ ...b, revenue: Number(b.revenue) })),
+    brandSales: brandSales.map((b) => ({ brandName: b.brandName, revenue: Number(b.revenue), count: Number(b.count) })),
   };
 }
 
