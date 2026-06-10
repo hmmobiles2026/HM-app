@@ -25,6 +25,14 @@ const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 async function uploadImage(
   file: File
 ): Promise<{ url: string; publicId: string } | { error: string }> {
+  if (
+    !process.env.CLOUDINARY_CLOUD_NAME ||
+    !process.env.CLOUDINARY_API_KEY ||
+    !process.env.CLOUDINARY_API_SECRET
+  ) {
+    return { error: "Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET to environment variables." };
+  }
+
   if (!ALLOWED_TYPES.includes(file.type) && file.type !== "") {
     return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
   }
@@ -38,9 +46,12 @@ async function uploadImage(
 
   const result = await cloudinary.uploader
     .upload(dataUri, { folder: "hm-stocks", resource_type: "image" })
-    .catch(() => null);
+    .catch((err) => {
+      console.error("Cloudinary upload error:", err);
+      return null;
+    });
 
-  if (!result) return { error: "Image upload failed. Check Cloudinary credentials." };
+  if (!result) return { error: "Image upload failed. Verify Cloudinary credentials are correct." };
   return { url: result.secure_url, publicId: result.public_id };
 }
 
