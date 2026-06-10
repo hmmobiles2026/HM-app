@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  OWNER
+  SELLER
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  password       String
+  role           Role     @default(SELLER)
+  whatsappNumber String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sales          Sale[]
+  stockMovements StockMovement[]
+}
+
+// ─── Product Catalog ─────────────────────────────────────────────────────────
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  products  Product[]
+}
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  models   PhoneModel[]
+  products Product[]
+}
+
+model PhoneModel {
+  id        String   @id @default(cuid())
+  name      String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brandId   String
+  createdAt DateTime @default(now())
+
+  products Product[]
+
+  @@unique([brandId, name])
+}
+
+enum QualityGrade {
+  ORIGINAL
+  COPY_A
+  COPY_B
+  OTHER
+}
+
+model Product {
+  id              String       @id @default(cuid())
+  name            String
+  description     String?
+  tags            String[]
+  imageUrl        String?
+  imagePublicId   String?
+  category        Category     @relation(fields: [categoryId], references: [id])
+  categoryId      String
+  brand           Brand        @relation(fields: [brandId], references: [id])
+  brandId         String
+  model           PhoneModel?  @relation(fields: [modelId], references: [id])
+  modelId         String?
+  qualityGrade    QualityGrade @default(ORIGINAL)
+  costPrice       Decimal      @db.Decimal(10, 2)
+  sellingPrice    Decimal      @db.Decimal(10, 2)
+  stockQty        Int          @default(0)
+  lowStockThreshold Int        @default(5)
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  stockMovements StockMovement[]
+  saleItems      SaleItem[]
+}
+
+// ─── Stock Movements ─────────────────────────────────────────────────────────
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+model StockMovement {
+  id        String       @id @default(cuid())
+  product   Product      @relation(fields: [productId], references: [id])
+  productId String
+  type      MovementType
+  quantity  Int
+  note      String?
+  createdBy User         @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime     @default(now())
+}
+
+// ─── Sales ───────────────────────────────────────────────────────────────────
+
+model Sale {
+  id           String   @id @default(cuid())
+  seller       User     @relation(fields: [sellerId], references: [id])
+  sellerId     String
+  totalRevenue Decimal  @db.Decimal(10, 2)
+  totalCost    Decimal  @db.Decimal(10, 2)
+  profit       Decimal  @db.Decimal(10, 2)
+  note         String?
+  createdAt    DateTime @default(now())
+
+  items SaleItem[]
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  unitCost  Decimal @db.Decimal(10, 2)
+
+  @@index([saleId])
+}
+
+// ─── WhatsApp ─────────────────────────────────────────────────────────────────
+
+model WhatsAppConfig {
+  id              String   @id @default(cuid())
+  phoneNumberId   String
+  accessToken     String
+  webhookSecret   String
+  recipientNumber String
+  devNumber       String?
+  isActive        Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+}
+
+model WhatsAppLog {
+  id        String   @id @default(cuid())
+  direction String
+  from      String
+  to        String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+// ─── Telegram ─────────────────────────────────────────────────────────────────
+
+model TelegramConfig {
+  id            String   @id @default(cuid())
+  botToken      String
+  chatId        String
+  webhookSecret String
+  isActive      Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
+}
+
+model TelegramLog {
+  id        String   @id @default(cuid())
+  direction String
+  from      String
+  to        String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+}
