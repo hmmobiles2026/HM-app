@@ -249,7 +249,7 @@ export function StockList({
                             <Edit2 className="h-3.5 w-3.5" />
                           </Link>
                           <Link
-                            href={`/stock/${p.id}/add`}
+                            href={`/stock/${p.id}?tab=stock-in`}
                             className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-emerald-400")}
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
@@ -314,7 +314,7 @@ export function StockList({
                     className={cn(buttonVariants({ size: "sm", variant: "outline" }), "flex-1 h-7 text-xs border-slate-700 text-slate-300")}
                   >Edit</Link>
                   <Link
-                    href={`/stock/${p.id}/add`}
+                    href={`/stock/${p.id}?tab=stock-in`}
                     className={cn(buttonVariants({ size: "sm" }), "flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-500")}
                   >+ Stock</Link>
                 </div>

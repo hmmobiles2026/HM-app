@@ -8,10 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function ProductDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const session = await verifySession();
 
   const [product, brands, categories, movements] = await Promise.all([
@@ -64,7 +67,7 @@ export default async function ProductDetailPage({
         </p>
       </div>
 
-      <Tabs defaultValue={canEdit ? "edit" : "history"}>
+      <Tabs defaultValue={tab === "stock-in" && canEdit ? "stock-in" : canEdit ? "edit" : "history"}>
         <TabsList className="bg-slate-900 border border-slate-800">
           {canEdit && (
             <TabsTrigger value="edit" className="data-[state=active]:bg-blue-600">
