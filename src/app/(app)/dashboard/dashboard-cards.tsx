@@ -90,7 +90,7 @@ export function DashboardCards({ data }: Props) {
         >
           <CardContent className="p-4">
             <div className="flex items-start justify-between mb-3">
-              <p className="text-slate-400 text-xs font-medium">{card.label}</p>
+              <p className="text-slate-300 text-xs font-medium">{card.label}</p>
               <div className={`p-1.5 rounded-lg ${card.bg}`}>
                 <card.icon className={`h-4 w-4 ${card.color}`} />
               </div>

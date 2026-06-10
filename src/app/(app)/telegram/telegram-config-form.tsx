@@ -126,13 +126,13 @@ export function TelegramConfigForm({ config }: { config: Config }) {
           <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
           <div>
             <p className="text-emerald-300 text-sm font-semibold">Bot configured</p>
-            <p className="text-slate-400 text-xs">Chat ID: {config.chatId}</p>
+            <p className="text-slate-300 text-xs">Chat ID: {config.chatId}</p>
           </div>
         </div>
       ) : (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/60 border border-slate-700">
           <span className="h-2 w-2 rounded-full bg-slate-500 shrink-0" />
-          <p className="text-slate-400 text-sm">Not configured — follow the steps below</p>
+          <p className="text-slate-300 text-sm">Not configured — follow the steps below</p>
         </div>
       )}
 
@@ -145,7 +145,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
             </span>
             <div>
               <p className="text-slate-200 text-xs font-semibold mb-0.5">{s.title}</p>
-              <p className="text-slate-400 text-xs leading-relaxed">{s.body}</p>
+              <p className="text-slate-300 text-xs leading-relaxed">{s.body}</p>
             </div>
           </div>
         ))}

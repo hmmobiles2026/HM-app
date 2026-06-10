@@ -33,7 +33,7 @@ export function LowStockAlert({ products }: { products: Product[] }) {
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Package className="h-8 w-8 text-slate-400 mb-2" />
-            <p className="text-slate-400 text-sm">All stock levels are good</p>
+            <p className="text-slate-300 text-sm">All stock levels are good</p>
           </div>
         ) : (
           <div className="space-y-2">

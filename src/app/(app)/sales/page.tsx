@@ -1,4 +1,4 @@
-import { verifySession } from "@/lib/dal";
+﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { QuickSaleForm } from "./quick-sale-form";
 import { SalesHistory } from "./sales-history";
@@ -61,10 +61,10 @@ export default async function SalesPage() {
 
       <Tabs defaultValue="new">
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="new" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="new" className="data-active:bg-blue-600 data-active:text-white">
             New Sale
           </TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="history" className="data-active:bg-blue-600 data-active:text-white">
             History
           </TabsTrigger>
         </TabsList>

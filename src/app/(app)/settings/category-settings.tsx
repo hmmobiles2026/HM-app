@@ -22,7 +22,7 @@ export function CategorySettings({ categories, isAdmin }: { categories: Category
 
       {/* Add form */}
       <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Add New Category</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Add New Category</p>
         <form action={action} className="flex gap-2">
           <Input
             name="name"
@@ -37,7 +37,7 @@ export function CategorySettings({ categories, isAdmin }: { categories: Category
 
       {/* List */}
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300 px-1">
           {categories.length} Categor{categories.length !== 1 ? "ies" : "y"}
         </p>
         {categories.map((c) => (

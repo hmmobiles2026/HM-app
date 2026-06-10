@@ -28,7 +28,7 @@ export function ModelSettings({ brands, isAdmin }: { brands: Brand[]; isAdmin: b
 
       {/* Add form */}
       <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Add New Model</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Add New Model</p>
         <form action={action} className="space-y-2">
           <Combobox
             name="brandId"
@@ -58,7 +58,7 @@ export function ModelSettings({ brands, isAdmin }: { brands: Brand[]; isAdmin: b
       {/* Models list */}
       {selectedBrand && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-300 px-1">
             {selectedBrandName} — {brandModels.length} model{brandModels.length !== 1 ? "s" : ""}
           </p>
           {brandModels.map((m) => (

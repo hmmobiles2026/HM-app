@@ -138,7 +138,7 @@ export function Combobox({
         <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-600 bg-slate-800 shadow-xl overflow-hidden">
           <div className="max-h-60 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-slate-400 text-center">No results</p>
+              <p className="px-3 py-3 text-sm text-slate-300 text-center">No results</p>
             ) : (
               filtered.map((item) => {
                 const active = item.id === value;

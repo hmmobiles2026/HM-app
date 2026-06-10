@@ -1,4 +1,4 @@
-import { verifyRole } from "@/lib/dal";
+﻿import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { AnalyticsCharts } from "./analytics-charts";
 import {
@@ -132,7 +132,7 @@ export default async function AnalyticsPage() {
     <div className="p-4 md:p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold text-white">Analytics</h1>
-        <p className="text-slate-400 text-sm mt-0.5">
+        <p className="text-slate-300 text-sm mt-0.5">
           Revenue, cost, and profit breakdown
         </p>
       </div>

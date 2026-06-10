@@ -70,7 +70,7 @@ export function BackupSettings() {
         <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
         <div>
           <p className="text-amber-300 text-sm font-semibold">Regular backups recommended</p>
-          <p className="text-slate-400 text-xs mt-0.5">
+          <p className="text-slate-300 text-xs mt-0.5">
             Download a full backup weekly and store it safely. The JSON file can be used to restore all data if needed.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function BackupSettings() {
 
       {/* Download exports */}
       <div>
-        <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Download</p>
+        <p className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-3">Download</p>
         <div className="space-y-2">
           {exports.map((e) => (
             <div
@@ -107,7 +107,7 @@ export function BackupSettings() {
 
       {/* Telegram backup */}
       <div>
-        <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Telegram</p>
+        <p className="text-slate-300 text-xs font-semibold uppercase tracking-wider mb-3">Telegram</p>
         <div className="space-y-2">
           <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800">
             <Send className="h-5 w-5 shrink-0 text-green-400" />

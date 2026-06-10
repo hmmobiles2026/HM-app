@@ -40,7 +40,7 @@ export function WhatsAppLogs({ logs }: { logs: Log[] }) {
               <p className="text-xs text-slate-300">
                 {log.direction === "IN" ? `From: ${log.from}` : `To: ${log.to}`}
               </p>
-              <p className="text-xs text-slate-400 flex-shrink-0">
+              <p className="text-xs text-slate-300 flex-shrink-0">
                 {format(new Date(log.createdAt), "dd MMM, h:mm a")}
               </p>
             </div>

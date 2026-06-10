@@ -22,7 +22,7 @@ export function BrandSettings({ brands, isAdmin }: { brands: Brand[]; isAdmin: b
 
       {/* Add form */}
       <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Add New Brand</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Add New Brand</p>
         <form action={action} className="flex gap-2">
           <Input
             name="name"
@@ -37,7 +37,7 @@ export function BrandSettings({ brands, isAdmin }: { brands: Brand[]; isAdmin: b
 
       {/* List */}
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300 px-1">
           {brands.length} Brand{brands.length !== 1 ? "s" : ""}
         </p>
         {brands.map((b) => (

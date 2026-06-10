@@ -38,7 +38,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
           <MessageCircle className="h-4 w-4" />
           Setup Guide
         </p>
-        <ol className="text-slate-400 text-xs space-y-1 list-decimal list-inside">
+        <ol className="text-slate-300 text-xs space-y-1 list-decimal list-inside">
           <li>Go to Meta Developer Console → Create App → WhatsApp</li>
           <li>Get your Phone Number ID and Access Token</li>
           <li>

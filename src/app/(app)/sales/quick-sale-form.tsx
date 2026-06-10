@@ -77,7 +77,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
 
       {/* Product picker */}
       <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Add Product</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Add Product</p>
         <div className="flex gap-2 items-start">
           <div className="flex-1">
             <Combobox
@@ -120,7 +120,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
       {/* Cart */}
       {cart.length > 0 ? (
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Cart</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">Cart</p>
 
           <div className="space-y-2">
             {cart.map((item) => (
@@ -198,7 +198,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
           {/* Total + complete */}
           <div className="rounded-xl bg-slate-900 border border-slate-800 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-slate-400 text-sm">Total</p>
+              <p className="text-slate-300 text-sm">Total</p>
               <p className="text-white font-bold text-xl">LKR {total.toLocaleString("en-LK")}</p>
             </div>
 

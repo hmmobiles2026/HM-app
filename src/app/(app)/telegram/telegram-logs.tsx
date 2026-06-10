@@ -47,7 +47,7 @@ export function TelegramLogs({ logs }: { logs: Log[] }) {
         <div key={group.label}>
           <div className="flex items-center gap-3 mb-2">
             <div className="h-px flex-1 bg-slate-800" />
-            <span className="text-xs text-slate-400 font-medium">{group.label}</span>
+            <span className="text-xs text-slate-300 font-medium">{group.label}</span>
             <div className="h-px flex-1 bg-slate-800" />
           </div>
 

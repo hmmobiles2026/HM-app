@@ -1,4 +1,4 @@
-import { verifyRole } from "@/lib/dal";
+﻿import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { WhatsAppConfigForm } from "./whatsapp-config-form";
 import { WhatsAppLogs } from "./whatsapp-logs";
@@ -19,20 +19,20 @@ export default async function WhatsAppPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-xl font-bold text-white">WhatsApp Bot</h1>
-        <p className="text-slate-400 text-sm mt-0.5">
+        <p className="text-slate-300 text-sm mt-0.5">
           Configure Meta WhatsApp Cloud API for two-way messaging
         </p>
       </div>
 
       <Tabs defaultValue="config">
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="config" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="config" className="data-active:bg-blue-600 data-active:text-white">
             Configuration
           </TabsTrigger>
-          <TabsTrigger value="logs" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="logs" className="data-active:bg-blue-600 data-active:text-white">
             Message Logs
           </TabsTrigger>
-          <TabsTrigger value="commands" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="commands" className="data-active:bg-blue-600 data-active:text-white">
             Bot Commands
           </TabsTrigger>
         </TabsList>
@@ -64,7 +64,7 @@ function BotCommandsHelp() {
 
   return (
     <div className="mt-4 max-w-lg space-y-2">
-      <p className="text-slate-400 text-sm mb-4">
+      <p className="text-slate-300 text-sm mb-4">
         Send these commands to your WhatsApp number to query the system:
       </p>
       {commands.map((c) => (
@@ -75,7 +75,7 @@ function BotCommandsHelp() {
           <code className="text-blue-400 text-sm font-mono whitespace-nowrap">
             {c.cmd}
           </code>
-          <span className="text-slate-400 text-sm">{c.desc}</span>
+          <span className="text-slate-300 text-sm">{c.desc}</span>
         </div>
       ))}
     </div>

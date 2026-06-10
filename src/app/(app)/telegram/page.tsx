@@ -38,7 +38,7 @@ export default async function TelegramPage() {
               </span>
             )}
           </div>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-300 text-sm mt-1">
             Query stock and sales from Telegram — works from anywhere
           </p>
         </div>
@@ -47,10 +47,10 @@ export default async function TelegramPage() {
       {/* Tabs */}
       <Tabs defaultValue="config">
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="config" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="config" className="data-active:bg-blue-600 data-active:text-white">
             Configuration
           </TabsTrigger>
-          <TabsTrigger value="logs" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="logs" className="data-active:bg-blue-600 data-active:text-white">
             Logs
             {logs.length > 0 && (
               <span className="ml-1.5 text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-full">
@@ -58,7 +58,7 @@ export default async function TelegramPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="commands" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="commands" className="data-active:bg-blue-600 data-active:text-white">
             Commands
           </TabsTrigger>
         </TabsList>
@@ -119,7 +119,7 @@ function BotCommandsHelp() {
 
   return (
     <div className="mt-4 max-w-lg space-y-4">
-      <p className="text-slate-400 text-sm">
+      <p className="text-slate-300 text-sm">
         Message your bot directly in Telegram with any of these:
       </p>
       {groups.map((g) => (
@@ -142,7 +142,7 @@ function BotCommandsHelp() {
                       </code>
                     ))}
                   </div>
-                  <p className="text-slate-400 text-xs mt-0.5">{c.desc}</p>
+                  <p className="text-slate-300 text-xs mt-0.5">{c.desc}</p>
                 </div>
               </div>
             ))}

@@ -63,7 +63,7 @@ export function SalesHistory({ sales, showFinancials }: Props) {
               <p className="text-white font-semibold text-sm tracking-wide">
                 #{sale.id.slice(-8).toUpperCase()}
               </p>
-              <p className="text-slate-400 text-xs mt-0.5">
+              <p className="text-slate-300 text-xs mt-0.5">
                 {sale.seller.name} · {format(new Date(sale.createdAt), "dd MMM yyyy, h:mm a")}
               </p>
             </div>
@@ -93,7 +93,7 @@ export function SalesHistory({ sales, showFinancials }: Props) {
                     />
                   ) : (
                     <div className="h-10 w-10 rounded-lg bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
-                      <span className="text-slate-400 text-xs font-bold">
+                      <span className="text-slate-300 text-xs font-bold">
                         {item.product.name.charAt(0)}
                       </span>
                     </div>
@@ -112,7 +112,7 @@ export function SalesHistory({ sales, showFinancials }: Props) {
                           : item.product.qualityGrade === "COPY_B" ? "Copy B"
                           : "Other"}
                       </Badge>
-                      <span className="text-slate-400 text-xs">× {item.quantity}</span>
+                      <span className="text-slate-300 text-xs">× {item.quantity}</span>
                     </div>
                   </div>
 
@@ -125,7 +125,7 @@ export function SalesHistory({ sales, showFinancials }: Props) {
             })}
 
             {sale.note && (
-              <p className="text-slate-400 text-xs border-t border-slate-800 pt-2 mt-1">
+              <p className="text-slate-300 text-xs border-t border-slate-800 pt-2 mt-1">
                 {sale.note}
               </p>
             )}

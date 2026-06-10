@@ -1,4 +1,4 @@
-import { verifyRole } from "@/lib/dal";
+﻿import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandSettings } from "./brand-settings";
@@ -27,22 +27,22 @@ export default async function SettingsPage() {
 
       <Tabs defaultValue="brands">
         <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto gap-1 p-1">
-          <TabsTrigger value="brands" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="brands" className="data-active:bg-blue-600 data-active:text-white">
             Brands
           </TabsTrigger>
-          <TabsTrigger value="models" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="models" className="data-active:bg-blue-600 data-active:text-white">
             Models
           </TabsTrigger>
-          <TabsTrigger value="categories" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="categories" className="data-active:bg-blue-600 data-active:text-white">
             Categories
           </TabsTrigger>
           {session.role === "ADMIN" && (
-            <TabsTrigger value="users" className="data-[state=active]:bg-blue-600">
+            <TabsTrigger value="users" className="data-active:bg-blue-600 data-active:text-white">
               Users
             </TabsTrigger>
           )}
           {session.role === "ADMIN" && (
-            <TabsTrigger value="backup" className="data-[state=active]:bg-blue-600">
+            <TabsTrigger value="backup" className="data-active:bg-blue-600 data-active:text-white">
               Backup
             </TabsTrigger>
           )}

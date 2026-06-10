@@ -1,4 +1,4 @@
-import { verifySession } from "@/lib/dal";
+﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { StockList } from "./stock-list";
 import { buttonVariants } from "@/components/ui/button";
@@ -76,7 +76,7 @@ export default async function StockPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Stock</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
+          <p className="text-slate-300 text-sm mt-0.5">
             {products.length} products
           </p>
         </div>

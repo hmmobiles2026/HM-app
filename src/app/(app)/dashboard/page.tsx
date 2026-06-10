@@ -1,4 +1,4 @@
-import { verifySession } from "@/lib/dal";
+﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { DashboardCards } from "./dashboard-cards";
 import { RecentSalesChart } from "./recent-sales-chart";
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
         <h1 className="text-xl font-bold text-white">
           Welcome back, {session.name}
         </h1>
-        <p className="text-slate-400 text-sm mt-0.5">
+        <p className="text-slate-300 text-sm mt-0.5">
           Here&apos;s what&apos;s happening at HM Stocks today.
         </p>
       </div>

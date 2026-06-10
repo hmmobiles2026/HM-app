@@ -141,27 +141,27 @@ export function StockList({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-900 border-b border-slate-800">
-              <th className="text-left px-4 py-3 text-slate-400 font-medium">
+              <th className="text-left px-4 py-3 text-slate-300 font-medium">
                 Product
               </th>
-              <th className="text-left px-4 py-3 text-slate-400 font-medium">
+              <th className="text-left px-4 py-3 text-slate-300 font-medium">
                 Grade
               </th>
-              <th className="text-left px-4 py-3 text-slate-400 font-medium">
+              <th className="text-left px-4 py-3 text-slate-300 font-medium">
                 Category
               </th>
-              <th className="text-right px-4 py-3 text-slate-400 font-medium">
+              <th className="text-right px-4 py-3 text-slate-300 font-medium">
                 Stock
               </th>
               {showCosts && (
-                <th className="text-right px-4 py-3 text-slate-400 font-medium">
+                <th className="text-right px-4 py-3 text-slate-300 font-medium">
                   Cost
                 </th>
               )}
-              <th className="text-right px-4 py-3 text-slate-400 font-medium">
+              <th className="text-right px-4 py-3 text-slate-300 font-medium">
                 Price
               </th>
-              <th className="text-right px-4 py-3 text-slate-400 font-medium w-20">
+              <th className="text-right px-4 py-3 text-slate-300 font-medium w-20">
                 Actions
               </th>
             </tr>
