@@ -27,22 +27,22 @@ export default async function SettingsPage() {
 
       <Tabs defaultValue="brands">
         <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto gap-1 p-1">
-          <TabsTrigger value="brands" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="brands" className="text-white data-active:bg-blue-600 data-active:text-white">
             Brands
           </TabsTrigger>
-          <TabsTrigger value="models" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="models" className="text-white data-active:bg-blue-600 data-active:text-white">
             Models
           </TabsTrigger>
-          <TabsTrigger value="categories" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="categories" className="text-white data-active:bg-blue-600 data-active:text-white">
             Categories
           </TabsTrigger>
           {session.role === "ADMIN" && (
-            <TabsTrigger value="users" className="data-active:bg-blue-600 data-active:text-white">
+            <TabsTrigger value="users" className="text-white data-active:bg-blue-600 data-active:text-white">
               Users
             </TabsTrigger>
           )}
           {session.role === "ADMIN" && (
-            <TabsTrigger value="backup" className="data-active:bg-blue-600 data-active:text-white">
+            <TabsTrigger value="backup" className="text-white data-active:bg-blue-600 data-active:text-white">
               Backup
             </TabsTrigger>
           )}

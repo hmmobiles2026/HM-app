@@ -26,13 +26,13 @@ export default async function WhatsAppPage() {
 
       <Tabs defaultValue="config">
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="config" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="config" className="text-white data-active:bg-blue-600 data-active:text-white">
             Configuration
           </TabsTrigger>
-          <TabsTrigger value="logs" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="logs" className="text-white data-active:bg-blue-600 data-active:text-white">
             Message Logs
           </TabsTrigger>
-          <TabsTrigger value="commands" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="commands" className="text-white data-active:bg-blue-600 data-active:text-white">
             Bot Commands
           </TabsTrigger>
         </TabsList>

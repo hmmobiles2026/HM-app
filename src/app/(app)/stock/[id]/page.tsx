@@ -70,16 +70,16 @@ export default async function ProductDetailPage({
       <Tabs defaultValue={tab === "stock-in" && canEdit ? "stock-in" : canEdit ? "edit" : "history"}>
         <TabsList className="bg-slate-900 border border-slate-800">
           {canEdit && (
-            <TabsTrigger value="edit" className="data-[state=active]:bg-blue-600">
+            <TabsTrigger value="edit" className="text-white data-active:bg-blue-600 data-active:text-white">
               Edit Product
             </TabsTrigger>
           )}
           {canEdit && (
-            <TabsTrigger value="stock-in" className="data-[state=active]:bg-blue-600">
+            <TabsTrigger value="stock-in" className="text-white data-active:bg-blue-600 data-active:text-white">
               Add Stock
             </TabsTrigger>
           )}
-          <TabsTrigger value="history" className="data-[state=active]:bg-blue-600">
+          <TabsTrigger value="history" className="text-white data-active:bg-blue-600 data-active:text-white">
             History
           </TabsTrigger>
         </TabsList>

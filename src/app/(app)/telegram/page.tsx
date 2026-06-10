@@ -47,10 +47,10 @@ export default async function TelegramPage() {
       {/* Tabs */}
       <Tabs defaultValue="config">
         <TabsList className="bg-slate-900 border border-slate-800">
-          <TabsTrigger value="config" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="config" className="text-white data-active:bg-blue-600 data-active:text-white">
             Configuration
           </TabsTrigger>
-          <TabsTrigger value="logs" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="logs" className="text-white data-active:bg-blue-600 data-active:text-white">
             Logs
             {logs.length > 0 && (
               <span className="ml-1.5 text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-full">
@@ -58,7 +58,7 @@ export default async function TelegramPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="commands" className="data-active:bg-blue-600 data-active:text-white">
+          <TabsTrigger value="commands" className="text-white data-active:bg-blue-600 data-active:text-white">
             Commands
           </TabsTrigger>
         </TabsList>
