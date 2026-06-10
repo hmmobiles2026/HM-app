@@ -11,6 +11,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   serverExternalPackages: [
     "bcryptjs",
+    "cloudinary",
     "@prisma/adapter-neon",
     "@neondatabase/serverless",
   ],

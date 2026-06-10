@@ -13,6 +13,37 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+];
+const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+
+async function uploadImage(
+  file: File
+): Promise<{ url: string; publicId: string } | { error: string }> {
+  if (!ALLOWED_TYPES.includes(file.type) && file.type !== "") {
+    return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
+  }
+  if (file.size > MAX_SIZE) {
+    return { error: "Image must be smaller than 5 MB." };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const mimeType = file.type || "image/jpeg";
+  const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+
+  const result = await cloudinary.uploader
+    .upload(dataUri, { folder: "hm-stocks", resource_type: "image" })
+    .catch(() => null);
+
+  if (!result) return { error: "Image upload failed. Check Cloudinary credentials." };
+  return { url: result.secure_url, publicId: result.public_id };
+}
+
 const ProductSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -44,32 +75,19 @@ export async function createProduct(
   }
 
   const { tags, modelId, ...rest } = parsed.data;
-  const tagList = tags ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
+  const tagList = tags
+    ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+    : [];
 
   let imageUrl: string | undefined;
   let imagePublicId: string | undefined;
 
   const imageFile = formData.get("image") as File | null;
   if (imageFile && imageFile.size > 0) {
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
-    if (!allowed.includes(imageFile.type))
-      return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
-    if (imageFile.size > 5 * 1024 * 1024)
-      return { error: "Image must be smaller than 5 MB." };
-
-    const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const result = await new Promise<{ secure_url: string; public_id: string } | null>(
-      (resolve) => {
-        cloudinary.uploader
-          .upload_stream({ folder: "hm-stocks" }, (err, res) => {
-            resolve(err || !res ? null : (res as { secure_url: string; public_id: string }));
-          })
-          .end(buffer);
-      }
-    );
-    if (!result) return { error: "Image upload failed. Check Cloudinary credentials." };
-    imageUrl = result.secure_url;
-    imagePublicId = result.public_id;
+    const uploaded = await uploadImage(imageFile);
+    if ("error" in uploaded) return { error: uploaded.error };
+    imageUrl = uploaded.url;
+    imagePublicId = uploaded.publicId;
   }
 
   await prisma.product.create({
@@ -100,7 +118,9 @@ export async function updateProduct(
   }
 
   const { tags, modelId, ...rest } = parsed.data;
-  const tagList = tags ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
+  const tagList = tags
+    ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+    : [];
 
   const existing = await prisma.product.findUnique({ where: { id } });
   if (!existing) return { error: "Product not found" };
@@ -110,28 +130,13 @@ export async function updateProduct(
 
   const imageFile = formData.get("image") as File | null;
   if (imageFile && imageFile.size > 0) {
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
-    if (!allowed.includes(imageFile.type))
-      return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
-    if (imageFile.size > 5 * 1024 * 1024)
-      return { error: "Image must be smaller than 5 MB." };
-
     if (imagePublicId) {
       await cloudinary.uploader.destroy(imagePublicId).catch(() => {});
     }
-    const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const result = await new Promise<{ secure_url: string; public_id: string } | null>(
-      (resolve) => {
-        cloudinary.uploader
-          .upload_stream({ folder: "hm-stocks" }, (err, res) => {
-            resolve(err || !res ? null : (res as { secure_url: string; public_id: string }));
-          })
-          .end(buffer);
-      }
-    );
-    if (!result) return { error: "Image upload failed. Check Cloudinary credentials." };
-    imageUrl = result.secure_url;
-    imagePublicId = result.public_id;
+    const uploaded = await uploadImage(imageFile);
+    if ("error" in uploaded) return { error: uploaded.error };
+    imageUrl = uploaded.url;
+    imagePublicId = uploaded.publicId;
   }
 
   await prisma.product.update({
