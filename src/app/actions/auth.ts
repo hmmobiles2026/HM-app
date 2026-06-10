@@ -32,12 +32,7 @@ export async function login(
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return { error: "Invalid email or password." };
 
-  await createSession({
-    userId: user.id,
-    role: user.role,
-    name: user.name,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
+  await createSession({ userId: user.id, role: user.role, name: user.name });
 
   redirect("/dashboard");
 }

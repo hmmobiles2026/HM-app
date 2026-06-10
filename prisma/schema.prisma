@@ -28,6 +28,18 @@ model User {
 
   sales          Sale[]
   stockMovements StockMovement[]
+  refreshTokens  RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ─── Product Catalog ─────────────────────────────────────────────────────────
