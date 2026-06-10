@@ -44,7 +44,7 @@ async function uploadImage(
   return { url: result.secure_url, publicId: result.public_id };
 }
 
-const ProductSchema = z.object({
+const BaseProductSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   tags: z.string().optional(),
@@ -54,8 +54,11 @@ const ProductSchema = z.object({
   qualityGrade: z.enum(["ORIGINAL", "COPY_A", "COPY_B", "OTHER"]),
   costPrice: z.coerce.number().positive(),
   sellingPrice: z.coerce.number().positive(),
-  stockQty: z.coerce.number().int().min(0),
   lowStockThreshold: z.coerce.number().int().min(0),
+});
+
+const CreateProductSchema = BaseProductSchema.extend({
+  stockQty: z.coerce.number().int().min(0),
 });
 
 export type ProductFormState =
@@ -69,14 +72,14 @@ export async function createProduct(
   const session = await verifySession();
   if (session.role === "SELLER") return { error: "Unauthorized" };
 
-  const parsed = ProductSchema.safeParse(Object.fromEntries(formData));
+  const parsed = CreateProductSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors };
   }
 
   const { tags, modelId, ...rest } = parsed.data;
   const tagList = tags
-    ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+    ? tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean)
     : [];
 
   let imageUrl: string | undefined;
@@ -112,14 +115,14 @@ export async function updateProduct(
   const session = await verifySession();
   if (session.role === "SELLER") return { error: "Unauthorized" };
 
-  const parsed = ProductSchema.safeParse(Object.fromEntries(formData));
+  const parsed = BaseProductSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors };
   }
 
   const { tags, modelId, ...rest } = parsed.data;
   const tagList = tags
-    ? tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean)
+    ? tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean)
     : [];
 
   const existing = await prisma.product.findUnique({ where: { id } });
