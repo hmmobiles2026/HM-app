@@ -1,11 +1,11 @@
 import { verifyRole } from "@/lib/dal";
-import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandSettings } from "./brand-settings";
 import { ModelSettings } from "./model-settings";
 import { CategorySettings } from "./category-settings";
 import { UserSettings } from "./user-settings";
+import { BackupSettings } from "./backup-settings";
 
 export default async function SettingsPage() {
   const session = await verifyRole(["ADMIN", "OWNER"]);
@@ -41,6 +41,11 @@ export default async function SettingsPage() {
               Users
             </TabsTrigger>
           )}
+          {session.role === "ADMIN" && (
+            <TabsTrigger value="backup" className="data-[state=active]:bg-blue-600">
+              Backup
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="brands">
@@ -55,6 +60,11 @@ export default async function SettingsPage() {
         {session.role === "ADMIN" && (
           <TabsContent value="users">
             <UserSettings users={users} />
+          </TabsContent>
+        )}
+        {session.role === "ADMIN" && (
+          <TabsContent value="backup">
+            <BackupSettings />
           </TabsContent>
         )}
       </Tabs>
