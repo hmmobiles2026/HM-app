@@ -92,39 +92,35 @@ export function StockList({
             className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
           />
         </div>
-        <Select onValueChange={(v) => onFilterChange("brand", v as string)}>
+        <Select defaultValue="all" onValueChange={(v) => onFilterChange("brand", v as string)}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
-            <SelectValue placeholder="All Brands">
-              {(v: string | null) => (v === "all" || !v) ? null : brands.find((b) => b.id === v)?.name ?? null}
-            </SelectValue>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-700">
             <SelectItem value="all">All Brands</SelectItem>
             {brands.map((b) => (
-              <SelectItem key={b.id} value={b.id} label={b.name}>
+              <SelectItem key={b.id} value={b.id}>
                 {b.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select onValueChange={(v) => onFilterChange("category", v as string)}>
+        <Select defaultValue="all" onValueChange={(v) => onFilterChange("category", v as string)}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
-            <SelectValue placeholder="All Categories">
-              {(v: string | null) => (v === "all" || !v) ? null : categories.find((c) => c.id === v)?.name ?? null}
-            </SelectValue>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-700">
             <SelectItem value="all">All Categories</SelectItem>
             {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id} label={c.name}>
+              <SelectItem key={c.id} value={c.id}>
                 {c.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select onValueChange={(v) => onFilterChange("grade", v as string)}>
+        <Select defaultValue="all" onValueChange={(v) => onFilterChange("grade", v as string)}>
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
-            <SelectValue placeholder="All Grades" />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-700">
             <SelectItem value="all">All Grades</SelectItem>
