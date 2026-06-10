@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { sendTelegramBackup } from "@/app/actions/backup";
+import { uploadBackupToDrive } from "@/app/actions/drive-backup";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileJson, Send, Loader2, ShieldCheck } from "lucide-react";
+import { FileDown, FileJson, Send, Loader2, ShieldCheck, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 
 type ExportItem = {
@@ -44,11 +45,20 @@ const exports: ExportItem[] = [
 
 export function BackupSettings() {
   const [sendingTelegram, setSendingTelegram] = useState(false);
+  const [uploadingDrive, setUploadingDrive] = useState(false);
 
   async function handleTelegramBackup() {
     setSendingTelegram(true);
     const r = await sendTelegramBackup();
     setSendingTelegram(false);
+    if (r?.success) toast.success(r.success);
+    if (r?.error) toast.error(r.error);
+  }
+
+  async function handleDriveUpload() {
+    setUploadingDrive(true);
+    const r = await uploadBackupToDrive();
+    setUploadingDrive(false);
     if (r?.success) toast.success(r.success);
     if (r?.error) toast.error(r.error);
   }
@@ -93,6 +103,30 @@ export function BackupSettings() {
               </a>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Google Drive backup */}
+      <div>
+        <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Google Drive</p>
+        <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800">
+          <HardDrive className="h-5 w-5 shrink-0 text-green-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium">Upload Full Backup to Drive</p>
+            <p className="text-slate-500 text-xs">
+              Uploads a complete JSON backup to your Google Drive folder automatically
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={uploadingDrive}
+            onClick={handleDriveUpload}
+            className="border-slate-700 text-slate-300 hover:text-white shrink-0"
+          >
+            {uploadingDrive ? <Loader2 className="h-4 w-4 animate-spin" /> : "Upload"}
+          </Button>
         </div>
       </div>
 
