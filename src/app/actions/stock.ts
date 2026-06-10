@@ -168,7 +168,7 @@ export async function addStock(
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${productId}`);
-  redirect(`/stock/${productId}`);
+  redirect("/stock");
 }
 
 export async function deleteProduct(id: string) {
