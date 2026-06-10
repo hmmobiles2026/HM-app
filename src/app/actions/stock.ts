@@ -51,17 +51,23 @@ export async function createProduct(
 
   const imageFile = formData.get("image") as File | null;
   if (imageFile && imageFile.size > 0) {
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+    if (!allowed.includes(imageFile.type))
+      return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
+    if (imageFile.size > 5 * 1024 * 1024)
+      return { error: "Image must be smaller than 5 MB." };
+
     const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const result = await new Promise<{ secure_url: string; public_id: string }>(
-      (resolve, reject) => {
+    const result = await new Promise<{ secure_url: string; public_id: string } | null>(
+      (resolve) => {
         cloudinary.uploader
           .upload_stream({ folder: "hm-stocks" }, (err, res) => {
-            if (err || !res) reject(err);
-            else resolve(res as { secure_url: string; public_id: string });
+            resolve(err || !res ? null : (res as { secure_url: string; public_id: string }));
           })
           .end(buffer);
       }
     );
+    if (!result) return { error: "Image upload failed. Check Cloudinary credentials." };
     imageUrl = result.secure_url;
     imagePublicId = result.public_id;
   }
@@ -104,20 +110,26 @@ export async function updateProduct(
 
   const imageFile = formData.get("image") as File | null;
   if (imageFile && imageFile.size > 0) {
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+    if (!allowed.includes(imageFile.type))
+      return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
+    if (imageFile.size > 5 * 1024 * 1024)
+      return { error: "Image must be smaller than 5 MB." };
+
     if (imagePublicId) {
-      await cloudinary.uploader.destroy(imagePublicId);
+      await cloudinary.uploader.destroy(imagePublicId).catch(() => {});
     }
     const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const result = await new Promise<{ secure_url: string; public_id: string }>(
-      (resolve, reject) => {
+    const result = await new Promise<{ secure_url: string; public_id: string } | null>(
+      (resolve) => {
         cloudinary.uploader
           .upload_stream({ folder: "hm-stocks" }, (err, res) => {
-            if (err || !res) reject(err);
-            else resolve(res as { secure_url: string; public_id: string });
+            resolve(err || !res ? null : (res as { secure_url: string; public_id: string }));
           })
           .end(buffer);
       }
     );
+    if (!result) return { error: "Image upload failed. Check Cloudinary credentials." };
     imageUrl = result.secure_url;
     imagePublicId = result.public_id;
   }
