@@ -20,7 +20,7 @@ export function StockInForm({ productId }: { productId: string }) {
           min={1}
           placeholder="e.g. 10"
           required
-          className="bg-slate-900 border-slate-700 text-white"
+          className="h-11 bg-slate-900 border-slate-700 text-white rounded-xl"
         />
         {state?.errors?.quantity && (
           <p className="text-xs text-red-400">{state.errors.quantity[0]}</p>
@@ -31,16 +31,18 @@ export function StockInForm({ productId }: { productId: string }) {
         <Input
           name="note"
           placeholder="e.g. Purchased from supplier"
-          className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+          className="h-11 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 rounded-xl"
         />
       </div>
       {state?.error && (
-        <p className="text-sm text-red-400">{state.error}</p>
+        <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-xl px-4 py-2.5">
+          {state.error}
+        </p>
       )}
       <Button
         type="submit"
         disabled={pending}
-        className="bg-blue-600 hover:bg-blue-500"
+        className="h-11 w-full sm:w-auto min-w-28 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl font-semibold"
       >
         {pending ? "Adding…" : "Add Stock"}
       </Button>

@@ -161,7 +161,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
             type="password"
             defaultValue={config?.botToken ?? ""}
             placeholder="7123456789:AAHabcdef…"
-            className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 font-mono"
+            className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 font-mono rounded-xl"
           />
           <p className="text-xs text-slate-300">Provided by @BotFather after creating the bot</p>
         </div>
@@ -174,7 +174,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
               name="chatId"
               defaultValue={config?.chatId ?? ""}
               placeholder="123456789"
-              className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 font-mono"
+              className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 font-mono rounded-xl"
             />
             <button
               type="button"
@@ -197,7 +197,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
               name="webhookSecret"
               defaultValue={config?.webhookSecret ?? ""}
               placeholder="any-random-string"
-              className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
+              className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 rounded-xl"
             />
             <p className="text-xs text-slate-300">Keeps your webhook endpoint private</p>
           </div>
@@ -227,7 +227,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button type="submit" disabled={pending} className="bg-blue-600 hover:bg-blue-500">
+          <Button type="submit" disabled={pending} className="h-11 bg-blue-600 hover:bg-blue-500 rounded-xl">
             {pending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : "Save Config"}
           </Button>
 

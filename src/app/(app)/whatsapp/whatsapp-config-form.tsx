@@ -5,7 +5,7 @@ import { saveWhatsAppConfig, sendTestMessage } from "@/app/actions/whatsapp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Send, ExternalLink } from "lucide-react";
+import { MessageCircle, Send } from "lucide-react";
 import { toast } from "sonner";
 
 type Config = {
@@ -60,7 +60,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
               name="phoneNumberId"
               defaultValue={config?.phoneNumberId}
               placeholder="From Meta Developer Console"
-              className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
+              className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 rounded-xl"
             />
           </div>
           <div className="space-y-1.5">
@@ -69,7 +69,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
               name="webhookSecret"
               defaultValue={config?.webhookSecret}
               placeholder="Your custom verify token"
-              className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
+              className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 rounded-xl"
             />
           </div>
         </div>
@@ -80,7 +80,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
             type="password"
             defaultValue={config?.accessToken}
             placeholder="Bearer token from Meta"
-            className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
+            className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 rounded-xl"
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -90,7 +90,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
               name="recipientNumber"
               defaultValue={config?.recipientNumber}
               placeholder="+94771234567"
-              className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
+              className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 rounded-xl"
             />
           </div>
           <div className="space-y-1.5">
@@ -99,7 +99,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
               name="devNumber"
               defaultValue={config?.devNumber ?? ""}
               placeholder="+94771234567"
-              className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
+              className="h-11 bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 rounded-xl"
             />
             <p className="text-xs text-slate-300">For testing — test messages go here</p>
           </div>

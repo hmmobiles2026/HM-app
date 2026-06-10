@@ -52,7 +52,7 @@ export default function LoginPage() {
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500"
+                  className="h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 rounded-xl"
                 />
               </div>
               <div className="space-y-1.5">
@@ -66,12 +66,12 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500"
+                  className="h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 rounded-xl"
                 />
               </div>
 
               {state?.error && (
-                <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-md px-3 py-2">
+                <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-xl px-4 py-2.5">
                   {state.error}
                 </p>
               )}
@@ -79,7 +79,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={pending}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl text-base"
               >
                 {pending ? "Signing in…" : "Sign in"}
               </Button>
