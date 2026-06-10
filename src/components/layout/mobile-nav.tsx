@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -68,7 +68,7 @@ export function MobileNav({ role }: { role: Role }) {
               href={item.href}
               className={cn(
                 "flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors min-w-0",
-                isActive ? "text-blue-400" : "text-slate-500"
+                isActive ? "text-blue-400" : "text-slate-300"
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />

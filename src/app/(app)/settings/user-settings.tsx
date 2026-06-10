@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState, useState } from "react";
 import { createUser, toggleUserActive } from "@/app/actions/settings";
@@ -100,7 +100,7 @@ export function UserSettings({ users }: { users: User[] }) {
                   {u.role.charAt(0) + u.role.slice(1).toLowerCase()}
                 </Badge>
               </div>
-              <p className="text-xs text-slate-500 truncate">{u.email}</p>
+              <p className="text-xs text-slate-300 truncate">{u.email}</p>
             </div>
             <form action={async () => {
               const r = await toggleUserActive(u.id, !u.isActive);

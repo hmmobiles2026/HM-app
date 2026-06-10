@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState, useState } from "react";
 import { createProduct, updateProduct } from "@/app/actions/stock";
@@ -67,7 +67,7 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
           )}
         </div>
         <div className="space-y-1.5">
-          <Label className="text-slate-300 text-sm font-medium">Model <span className="text-slate-500 font-normal">(optional)</span></Label>
+          <Label className="text-slate-300 text-sm font-medium">Model <span className="text-slate-300 font-normal">(optional)</span></Label>
           <Combobox
             key={selectedBrandId}
             name="modelId"
@@ -130,7 +130,7 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
       {/* Description */}
       <div className="space-y-1.5">
         <Label className="text-slate-300 text-sm font-medium">
-          Description <span className="text-slate-500 font-normal">(optional)</span>
+          Description <span className="text-slate-300 font-normal">(optional)</span>
         </Label>
         <Input
           name="description"
@@ -143,7 +143,7 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
       {/* Tags */}
       <div className="space-y-1.5">
         <Label className="text-slate-300 text-sm font-medium">
-          Tags <span className="text-slate-500 font-normal">(optional)</span>
+          Tags <span className="text-slate-300 font-normal">(optional)</span>
         </Label>
         <Input
           name="tags"
@@ -151,7 +151,7 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
           placeholder="amoled, oled, flex — comma separated"
           className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
         />
-        <p className="text-xs text-slate-500">Separate multiple tags with commas</p>
+        <p className="text-xs text-slate-300">Separate multiple tags with commas</p>
       </div>
 
       {/* Prices */}
@@ -217,14 +217,14 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
             required
             className="bg-slate-900 border-slate-700 text-white"
           />
-          <p className="text-xs text-slate-500">Alert when stock falls to this level</p>
+          <p className="text-xs text-slate-300">Alert when stock falls to this level</p>
         </div>
       </div>
 
       {/* Image */}
       <div className="space-y-1.5">
         <Label className="text-slate-300 text-sm font-medium">
-          Product Image <span className="text-slate-500 font-normal">(optional)</span>
+          Product Image <span className="text-slate-300 font-normal">(optional)</span>
         </Label>
         {product?.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element

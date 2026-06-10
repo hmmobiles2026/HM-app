@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, X, Check } from "lucide-react";
@@ -120,14 +120,14 @@ export function Combobox({
             <button
               type="button"
               onClick={clear}
-              className="text-slate-500 hover:text-slate-300 rounded p-0.5 transition-colors"
+              className="text-slate-300 hover:text-slate-300 rounded p-0.5 transition-colors"
             >
               <X className="h-3 w-3" />
             </button>
           )}
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-slate-500 transition-transform duration-150",
+              "h-4 w-4 text-slate-300 transition-transform duration-150",
               open && "rotate-180"
             )}
           />

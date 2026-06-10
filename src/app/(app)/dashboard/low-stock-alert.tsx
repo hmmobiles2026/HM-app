@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Package } from "lucide-react";
 import Link from "next/link";
@@ -32,7 +32,7 @@ export function LowStockAlert({ products }: { products: Product[] }) {
       <CardContent className="pt-0">
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Package className="h-8 w-8 text-slate-600 mb-2" />
+            <Package className="h-8 w-8 text-slate-400 mb-2" />
             <p className="text-slate-400 text-sm">All stock levels are good</p>
           </div>
         ) : (
@@ -47,7 +47,7 @@ export function LowStockAlert({ products }: { products: Product[] }) {
                   <p className="text-sm text-white font-medium truncate group-hover:text-blue-300">
                     {p.brandName} {p.modelName ? `${p.modelName} ` : ""}{p.name}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-300 mt-0.5">
                     Min: {p.lowStockThreshold} units
                   </p>
                 </div>

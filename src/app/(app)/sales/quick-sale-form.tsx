@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useActionState } from "react";
 import { createSale } from "@/app/actions/sales";
@@ -138,7 +138,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                   />
                 ) : (
                   <div className="h-10 w-10 rounded-lg bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
-                    <span className="text-slate-500 text-xs font-bold">{item.product.name.charAt(0)}</span>
+                    <span className="text-slate-300 text-xs font-bold">{item.product.name.charAt(0)}</span>
                   </div>
                 )}
 
@@ -187,7 +187,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                 <button
                   type="button"
                   onClick={() => removeFromCart(item.product.id)}
-                  className="text-slate-600 hover:text-red-400 transition-colors shrink-0"
+                  className="text-slate-400 hover:text-red-400 transition-colors shrink-0"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -231,7 +231,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center py-14 text-slate-600">
+        <div className="flex flex-col items-center py-14 text-slate-400">
           <ShoppingCart className="h-10 w-10 mb-3 opacity-40" />
           <p className="text-sm">Add products above to start a sale</p>
         </div>

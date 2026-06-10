@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+﻿import { format } from "date-fns";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 type Log = {
@@ -13,7 +13,7 @@ type Log = {
 export function WhatsAppLogs({ logs }: { logs: Log[] }) {
   if (logs.length === 0) {
     return (
-      <p className="text-slate-500 text-sm text-center py-12">
+      <p className="text-slate-300 text-sm text-center py-12">
         No messages yet
       </p>
     );
@@ -37,10 +37,10 @@ export function WhatsAppLogs({ logs }: { logs: Log[] }) {
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-300">
                 {log.direction === "IN" ? `From: ${log.from}` : `To: ${log.to}`}
               </p>
-              <p className="text-xs text-slate-600 flex-shrink-0">
+              <p className="text-xs text-slate-400 flex-shrink-0">
                 {format(new Date(log.createdAt), "dd MMM, h:mm a")}
               </p>
             </div>

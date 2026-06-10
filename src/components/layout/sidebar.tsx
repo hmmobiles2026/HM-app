@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -97,7 +97,7 @@ export function Sidebar({ role, name }: Props) {
         </div>
         <div>
           <p className="font-bold text-white leading-tight">HM Stocks</p>
-          <p className="text-xs text-slate-500">Parts Management</p>
+          <p className="text-xs text-slate-300">Parts Management</p>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ export function Sidebar({ role, name }: Props) {
                   "h-4.5 w-4.5 flex-shrink-0",
                   isActive
                     ? "text-white"
-                    : "text-slate-500 group-hover:text-slate-300"
+                    : "text-slate-400 group-hover:text-white"
                 )}
               />
               <span className="flex-1">{item.label}</span>

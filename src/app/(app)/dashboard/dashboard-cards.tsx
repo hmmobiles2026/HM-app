@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -98,7 +98,7 @@ export function DashboardCards({ data }: Props) {
             <p className="text-white font-bold text-lg leading-tight">
               {card.value}
             </p>
-            <p className="text-slate-500 text-xs mt-0.5">{card.sub}</p>
+            <p className="text-slate-300 text-xs mt-0.5">{card.sub}</p>
           </CardContent>
         </Card>
       ))}

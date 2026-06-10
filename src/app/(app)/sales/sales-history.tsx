@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+﻿import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Receipt } from "lucide-react";
 
@@ -43,7 +43,7 @@ const gradeColor: Record<string, string> = {
 export function SalesHistory({ sales, showFinancials }: Props) {
   if (sales.length === 0) {
     return (
-      <div className="flex flex-col items-center py-16 text-slate-500">
+      <div className="flex flex-col items-center py-16 text-slate-300">
         <Receipt className="h-10 w-10 mb-3 opacity-30" />
         <p className="text-sm">No sales yet</p>
       </div>
@@ -93,7 +93,7 @@ export function SalesHistory({ sales, showFinancials }: Props) {
                     />
                   ) : (
                     <div className="h-10 w-10 rounded-lg bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
-                      <span className="text-slate-600 text-xs font-bold">
+                      <span className="text-slate-400 text-xs font-bold">
                         {item.product.name.charAt(0)}
                       </span>
                     </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState } from "react";
 import { saveWhatsAppConfig, sendTestMessage } from "@/app/actions/whatsapp";
@@ -101,7 +101,7 @@ export function WhatsAppConfigForm({ config }: { config: Config }) {
               placeholder="+94771234567"
               className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
             />
-            <p className="text-xs text-slate-500">For testing — test messages go here</p>
+            <p className="text-xs text-slate-300">For testing — test messages go here</p>
           </div>
         </div>
 

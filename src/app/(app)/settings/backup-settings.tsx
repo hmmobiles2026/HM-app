@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { sendTelegramBackup, sendTelegramFileBackup } from "@/app/actions/backup";
@@ -88,7 +88,7 @@ export function BackupSettings() {
               <e.icon className={`h-5 w-5 shrink-0 ${e.color}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium">{e.label}</p>
-                <p className="text-slate-500 text-xs">{e.description}</p>
+                <p className="text-slate-300 text-xs">{e.description}</p>
               </div>
               <a href={e.url} download>
                 <Button
@@ -113,7 +113,7 @@ export function BackupSettings() {
             <Send className="h-5 w-5 shrink-0 text-green-400" />
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium">Send Full Backup File</p>
-              <p className="text-slate-500 text-xs">
+              <p className="text-slate-300 text-xs">
                 Sends a complete JSON file to your bot — download and store it safely
               </p>
             </div>
@@ -132,7 +132,7 @@ export function BackupSettings() {
             <Send className="h-5 w-5 shrink-0 text-blue-400" />
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium">Send Summary to Telegram</p>
-              <p className="text-slate-500 text-xs">
+              <p className="text-slate-300 text-xs">
                 Sends inventory count, all-time revenue, profit, and today's totals to your bot
               </p>
             </div>

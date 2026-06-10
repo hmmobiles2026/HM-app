@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -84,7 +84,7 @@ export function StockList({
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
           <Input
             placeholder="Search by name, brand, model, tag…"
             value={search}
@@ -185,7 +185,7 @@ export function StockList({
                         />
                       ) : (
                         <div className="h-9 w-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-                          <span className="text-slate-500 text-xs">
+                          <span className="text-slate-300 text-xs">
                             {p.brand.name.charAt(0)}
                           </span>
                         </div>
@@ -200,7 +200,7 @@ export function StockList({
                             {p.tags.slice(0, 3).map((t) => (
                               <span
                                 key={t}
-                                className="text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded"
+                                className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded"
                               >
                                 {t}
                               </span>
@@ -264,7 +264,7 @@ export function StockList({
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div className="py-16 text-center text-slate-500 bg-slate-950">
+          <div className="py-16 text-center text-slate-300 bg-slate-950">
             No products found
           </div>
         )}
@@ -291,7 +291,7 @@ export function StockList({
                     >
                       {gradeLabel[p.qualityGrade]}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-slate-300">
                       {p.category.name}
                     </span>
                   </div>
@@ -323,7 +323,7 @@ export function StockList({
           );
         })}
         {filtered.length === 0 && (
-          <p className="text-center text-slate-500 py-12">No products found</p>
+          <p className="text-center text-slate-300 py-12">No products found</p>
         )}
       </div>
     </div>

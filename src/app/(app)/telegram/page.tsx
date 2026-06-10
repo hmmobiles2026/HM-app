@@ -1,4 +1,4 @@
-import { verifyRole } from "@/lib/dal";
+﻿import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { TelegramConfigForm } from "./telegram-config-form";
 import { TelegramLogs } from "./telegram-logs";
@@ -33,7 +33,7 @@ export default async function TelegramPage() {
                 Active
               </span>
             ) : (
-              <span className="text-xs font-medium text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-medium text-slate-300 bg-slate-800 px-2 py-0.5 rounded-full">
                 Not set up
               </span>
             )}
@@ -137,7 +137,7 @@ function BotCommandsHelp() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <code className="text-white text-sm font-mono">{c.cmd}</code>
                     {c.shortcuts.map((s) => (
-                      <code key={s} className="text-xs text-slate-500 font-mono bg-slate-800 px-1.5 py-0.5 rounded">
+                      <code key={s} className="text-xs text-slate-300 font-mono bg-slate-800 px-1.5 py-0.5 rounded">
                         {s}
                       </code>
                     ))}

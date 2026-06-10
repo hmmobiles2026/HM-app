@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState, useEffect, useState } from "react";
 import {
@@ -163,7 +163,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
             placeholder="7123456789:AAHabcdef…"
             className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500 font-mono"
           />
-          <p className="text-xs text-slate-500">Provided by @BotFather after creating the bot</p>
+          <p className="text-xs text-slate-300">Provided by @BotFather after creating the bot</p>
         </div>
 
         {/* Chat ID + Webhook secret */}
@@ -199,7 +199,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
               placeholder="any-random-string"
               className="bg-slate-900 border-slate-700 text-white text-sm placeholder:text-slate-500"
             />
-            <p className="text-xs text-slate-500">Keeps your webhook endpoint private</p>
+            <p className="text-xs text-slate-300">Keeps your webhook endpoint private</p>
           </div>
         </div>
 
@@ -211,12 +211,12 @@ export function TelegramConfigForm({ config }: { config: Config }) {
             <button
               type="button"
               onClick={handleCopy}
-              className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+              className="shrink-0 text-slate-300 hover:text-slate-300 transition-colors"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </div>
-          <p className="text-xs text-slate-500">Register this URL with Telegram after deployment</p>
+          <p className="text-xs text-slate-300">Register this URL with Telegram after deployment</p>
         </div>
 
         {state?.error && (

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState } from "react";
 import { createCategory, deleteCategory } from "@/app/actions/settings";
@@ -46,7 +46,7 @@ export function CategorySettings({ categories, isAdmin }: { categories: Category
             className="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <Layers className="h-4 w-4 text-slate-500 shrink-0" />
+              <Layers className="h-4 w-4 text-slate-300 shrink-0" />
               <p className="text-white text-sm font-medium">{c.name}</p>
             </div>
             {isAdmin && (
@@ -55,7 +55,7 @@ export function CategorySettings({ categories, isAdmin }: { categories: Category
                 if (r?.success) toast.success(r.success);
                 if (r?.error) toast.error(r.error);
               }}>
-                <button type="submit" className="text-slate-600 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-950/30">
+                <button type="submit" className="text-slate-400 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-950/30">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </form>
@@ -63,7 +63,7 @@ export function CategorySettings({ categories, isAdmin }: { categories: Category
           </div>
         ))}
         {categories.length === 0 && (
-          <p className="text-slate-500 text-sm text-center py-6">No categories yet</p>
+          <p className="text-slate-300 text-sm text-center py-6">No categories yet</p>
         )}
       </div>
     </div>
