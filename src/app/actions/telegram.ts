@@ -89,6 +89,32 @@ export async function registerTelegramWebhook(appUrl: string): Promise<TelegramS
   }
 }
 
+export async function getWebhookInfo(): Promise<TelegramState> {
+  await verifyRole(["ADMIN"]);
+
+  const config = await prisma.telegramConfig.findFirst();
+  if (!config?.botToken) return { error: "Save your bot token first." };
+
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${config.botToken}/getWebhookInfo`
+    );
+    const data = await res.json();
+    if (!data.ok) return { error: `Telegram error: ${data.description}` };
+
+    const info = data.result;
+    const url = info.url || "(none — not registered)";
+    const pending = info.pending_update_count ?? 0;
+    const lastError = info.last_error_message
+      ? ` | Last error: ${info.last_error_message}`
+      : "";
+
+    return { success: `Webhook URL: ${url} | Pending: ${pending}${lastError}` };
+  } catch {
+    return { error: "Could not reach Telegram." };
+  }
+}
+
 export async function getTelegramChatId(): Promise<TelegramState> {
   await verifyRole(["ADMIN"]);
 

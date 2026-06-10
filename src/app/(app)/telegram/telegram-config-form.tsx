@@ -6,11 +6,12 @@ import {
   sendTestTelegramMessage,
   registerTelegramWebhook,
   getTelegramChatId,
+  getWebhookInfo,
 } from "@/app/actions/telegram";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Send, RefreshCw, Copy, Check, Loader2, Hash } from "lucide-react";
+import { Send, RefreshCw, Copy, Check, Loader2, Hash, Info } from "lucide-react";
 import { toast } from "sonner";
 
 type Config = {
@@ -71,6 +72,7 @@ export function TelegramConfigForm({ config }: { config: Config }) {
   const [testingMsg, setTestingMsg] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [gettingId, setGettingId] = useState(false);
+  const [checkingWebhook, setCheckingWebhook] = useState(false);
 
   useEffect(() => {
     setWebhookUrl(`${window.location.origin}/api/telegram/webhook`);
@@ -96,6 +98,14 @@ export function TelegramConfigForm({ config }: { config: Config }) {
     const r = await registerTelegramWebhook(origin);
     setRegistering(false);
     if (r?.success) toast.success(r.success, { duration: 6000 });
+    if (r?.error) toast.error(r.error);
+  }
+
+  async function handleCheckWebhook() {
+    setCheckingWebhook(true);
+    const r = await getWebhookInfo();
+    setCheckingWebhook(false);
+    if (r?.success) toast.info(r.success, { duration: 10000 });
     if (r?.error) toast.error(r.error);
   }
 
@@ -243,6 +253,17 @@ export function TelegramConfigForm({ config }: { config: Config }) {
               >
                 {registering ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 {registering ? "Registering…" : "Register Webhook"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={checkingWebhook}
+                className="border-slate-700 text-slate-300 hover:text-white"
+                onClick={handleCheckWebhook}
+              >
+                {checkingWebhook ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Info className="h-4 w-4 mr-2" />}
+                {checkingWebhook ? "Checking…" : "Check Webhook"}
               </Button>
             </>
           )}
