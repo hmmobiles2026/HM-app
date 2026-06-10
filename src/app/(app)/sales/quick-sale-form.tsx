@@ -128,6 +128,20 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                 key={item.product.id}
                 className="flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-xl p-3"
               >
+                {/* Thumbnail */}
+                {item.product.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.product.imageUrl}
+                    alt={item.product.name}
+                    className="h-10 w-10 rounded-lg object-cover bg-slate-800 shrink-0 ring-1 ring-slate-700"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
+                    <span className="text-slate-500 text-xs font-bold">{item.product.name.charAt(0)}</span>
+                  </div>
+                )}
+
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white font-medium truncate">
                     {item.product.brand.name}
@@ -136,11 +150,11 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                   <div className="flex items-center gap-2 mt-1">
                     <Badge
                       variant="outline"
-                      className={`text-xs px-1.5 py-0 ${gradeBadgeClass[item.product.qualityGrade] ?? "border-slate-700 text-slate-400"}`}
+                      className={`text-xs px-1.5 py-0 ${gradeBadgeClass[item.product.qualityGrade] ?? "border-slate-700 text-slate-300"}`}
                     >
                       {gradeLabel[item.product.qualityGrade]}
                     </Badge>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-300">
                       LKR {Number(item.product.sellingPrice).toLocaleString("en-LK")} each
                     </span>
                   </div>

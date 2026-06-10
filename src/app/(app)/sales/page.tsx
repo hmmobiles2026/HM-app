@@ -18,7 +18,19 @@ export default async function SalesPage() {
       where: session.role === "SELLER" ? { sellerId: session.userId } : {},
       include: {
         seller: { select: { name: true } },
-        items: { include: { product: { include: { brand: true, model: true } } } },
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                imageUrl: true,
+                qualityGrade: true,
+                brand: { select: { name: true } },
+                model: { select: { name: true } },
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -40,11 +52,6 @@ export default async function SalesPage() {
       ...item,
       unitPrice: item.unitPrice.toNumber(),
       unitCost: item.unitCost.toNumber(),
-      product: {
-        ...item.product,
-        costPrice: item.product.costPrice.toNumber(),
-        sellingPrice: item.product.sellingPrice.toNumber(),
-      },
     })),
   }));
 
