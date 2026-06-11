@@ -105,11 +105,10 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
     await sendTelegramMessage(
       config.botToken,
       config.chatId,
-      `⚠️ *HM Stocks — Action Required*\n\n` +
-      `Your Telegram access has been suspended due to a pending payment.\n\n` +
-      `To restore all features, please renew your license:\n` +
-      `💳 *LKR 2,000 for 3 months*\n\n` +
-      `Contact HM Stocks support to make payment and reactivate.`
+      `⚠️ *HM Stocks — Access Suspended*\n\n` +
+      `Your access has been suspended.\n\n` +
+      `Pay *LKR 2,000* to reactivate for 3 months.\n\n` +
+      `Contact HM Stocks support to make payment.`
     );
   }
 
