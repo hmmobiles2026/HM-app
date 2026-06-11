@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { getLicenseStatus } from "@/lib/license";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -32,9 +31,29 @@ export async function POST(req: NextRequest) {
     data: { direction: "IN", from: chatId, to: "bot", message: text },
   });
 
-  // If license is not active, only reply with the deactivated message
-  const license = await getLicenseStatus();
-  if (!license.active) {
+  // Direct DB check — bot is blocked if deactivated, trial not started, or expired
+  const licenseRow = await prisma.appLicense.findFirst();
+  const now = new Date();
+  const blocked =
+    !licenseRow ||
+    licenseRow.forceDeactivated ||
+    licenseRow.licensedUntil?.getTime() === 0 ||
+    (!licenseRow.trialStartedAt && !licenseRow.licensedUntil);
+
+  if (!blocked && licenseRow) {
+    const { addMonths } = await import("date-fns");
+    const trialEnd = licenseRow.trialStartedAt ? addMonths(licenseRow.trialStartedAt, 4) : now;
+    const expiresAt =
+      licenseRow.licensedUntil && licenseRow.licensedUntil > trialEnd
+        ? licenseRow.licensedUntil
+        : trialEnd;
+    if (now >= expiresAt) {
+      await sendTelegramMessage(config.botToken, chatId, DEACTIVATED_MSG);
+      return new Response("OK", { status: 200 });
+    }
+  }
+
+  if (blocked) {
     await sendTelegramMessage(config.botToken, chatId, DEACTIVATED_MSG);
     return new Response("OK", { status: 200 });
   }
