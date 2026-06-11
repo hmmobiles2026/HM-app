@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
-import { activateLicense } from "@/app/actions/license";
+import { useActionState, useState } from "react";
+import { activateLicense, deactivateLicense, generateLicenseKey } from "@/app/actions/license";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, ShieldAlert, ShieldOff, Clock } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldOff, Clock, PowerOff, KeyRound, Copy, Check } from "lucide-react";
 import type { LicenseStatus } from "@/lib/license";
 
 function StatusBadge({ status }: { status: LicenseStatus }) {
@@ -54,8 +54,18 @@ function StatusBadge({ status }: { status: LicenseStatus }) {
   );
 }
 
-export function LicenseSettings({ status }: { status: LicenseStatus }) {
+export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; isAdmin: boolean }) {
   const [state, action, pending] = useActionState(activateLicense, undefined);
+  const [deactivateState, deactivateAction, deactivatePending] = useActionState(deactivateLicense, undefined);
+  const [genState, genAction, genPending] = useActionState(generateLicenseKey, undefined);
+  const [copied, setCopied] = useState(false);
+
+  function copyKey() {
+    if (!genState?.key) return;
+    navigator.clipboard.writeText(genState.key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   return (
     <div className="mt-4 space-y-4 max-w-md">
@@ -101,6 +111,77 @@ export function LicenseSettings({ status }: { status: LicenseStatus }) {
           </Button>
         </form>
       </div>
+
+      {isAdmin && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-slate-400" />
+            <p className="text-sm font-medium text-slate-300">Generate License Key</p>
+          </div>
+          <p className="text-xs text-slate-500">
+            Generate a key and send it to the customer. Each key adds 3 months (LKR 2,000).
+          </p>
+          <form action={genAction} className="flex items-center gap-2">
+            <input type="hidden" name="months" value="3" />
+            <button
+              type="submit"
+              disabled={genPending}
+              className="h-8 px-3 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg border border-slate-600 disabled:opacity-50"
+            >
+              {genPending ? "Generating…" : "Generate Key"}
+            </button>
+          </form>
+          {genState?.error && (
+            <p className="text-xs text-red-400">{genState.error}</p>
+          )}
+          {genState?.key && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-slate-500">Copy this key and send to the customer:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-emerald-300 font-mono break-all">
+                  {genState.key}
+                </code>
+                <button
+                  type="button"
+                  onClick={copyKey}
+                  className="shrink-0 h-8 w-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-slate-300" />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isAdmin && !status.expired && (
+        <div className="bg-slate-900 border border-red-900/40 rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <PowerOff className="h-4 w-4 text-red-400" />
+            <p className="text-sm font-medium text-red-300">Deactivate License</p>
+          </div>
+          <p className="text-xs text-slate-500">
+            Immediately disables Telegram alerts. Use if the customer has not paid.
+          </p>
+          {deactivateState?.error && (
+            <p className="text-xs text-red-400">{deactivateState.error}</p>
+          )}
+          {deactivateState?.success && (
+            <p className="text-xs text-emerald-400">{deactivateState.success}</p>
+          )}
+          <form action={deactivateAction}>
+            <Button
+              type="submit"
+              disabled={deactivatePending}
+              variant="outline"
+              className="h-8 text-xs border-red-900 text-red-400 hover:bg-red-950/50 hover:text-red-300 rounded-lg"
+            >
+              <PowerOff className="h-3.5 w-3.5 mr-1.5" />
+              {deactivatePending ? "Deactivating…" : "Deactivate Now"}
+            </Button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

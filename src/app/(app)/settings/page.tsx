@@ -49,11 +49,9 @@ export default async function SettingsPage() {
               Backup
             </TabsTrigger>
           )}
-          {session.role === "ADMIN" && (
-            <TabsTrigger value="license" className="text-white data-active:bg-blue-600 data-active:text-white">
-              License
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="license" className="text-white data-active:bg-blue-600 data-active:text-white">
+            License
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="brands">
@@ -75,11 +73,9 @@ export default async function SettingsPage() {
             <BackupSettings />
           </TabsContent>
         )}
-        {session.role === "ADMIN" && (
-          <TabsContent value="license">
-            <LicenseSettings status={licenseStatus} />
-          </TabsContent>
-        )}
+        <TabsContent value="license">
+          <LicenseSettings status={licenseStatus} isAdmin={session.role === "ADMIN"} />
+        </TabsContent>
       </Tabs>
     </div>
   );
