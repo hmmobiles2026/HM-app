@@ -94,7 +94,7 @@ async function main() {
   console.log("✓ 5 brands + models seeded");
 
   // Admin user
-  const adminPw = await bcrypt.hash("Admin@1234", 10);
+  const adminPw = await bcrypt.hash("Admin@518", 10);
   await prisma.user.upsert({
     where: { username: "admin" },
     update: {},
@@ -119,7 +119,7 @@ async function main() {
 
   console.log("✓ 3 users seeded");
   console.log("\n📋 Login credentials:");
-  console.log("  Admin:  username=admin  / Admin@1234");
+  console.log("  Admin:  username=admin  / Admin@518");
   console.log("  Owner:  username=owner  / Owner@1234");
   console.log("  Seller: username=seller / Seller@1234");
   console.log("\n⚠️  Change all passwords after first login!");
