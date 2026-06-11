@@ -25,7 +25,9 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
 
   const now = new Date();
 
-  if (license.forceDeactivated) {
+  // forceDeactivated flag OR old sentinel value (licensedUntil set to epoch by previous code)
+  const isForceDeactivated = license.forceDeactivated || license.licensedUntil?.getTime() === 0;
+  if (isForceDeactivated) {
     return { active: false, isTrial: false, trialNotStarted: false, forceDeactivated: true, expiresAt: now, daysLeft: 0, expired: true, warningSoon: false };
   }
 

@@ -28,7 +28,7 @@ export async function activateLicense(
 
   await prisma.appLicense.update({
     where: { id: license.id },
-    data: { licensedUntil: result.expiresAt },
+    data: { licensedUntil: result.expiresAt, forceDeactivated: false },
   });
 
   revalidatePath("/settings");
@@ -70,7 +70,7 @@ export async function startFreeTrial(): Promise<LicenseActionState> {
 
   await prisma.appLicense.update({
     where: { id: license.id },
-    data: { trialStartedAt: new Date(), forceDeactivated: false },
+    data: { trialStartedAt: new Date(), forceDeactivated: false, licensedUntil: null },
   });
 
   const config = await prisma.telegramConfig.findFirst();
