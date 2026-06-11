@@ -219,6 +219,47 @@ export async function addStock(
   redirect("/stock");
 }
 
+export type BulkStockInState =
+  | { error?: string; success?: string }
+  | undefined;
+
+export async function addStockBulk(
+  _state: BulkStockInState,
+  formData: FormData
+): Promise<BulkStockInState> {
+  const session = await verifySession();
+  if (session.role === "SELLER") return { error: "Unauthorized" };
+
+  const note = (formData.get("note") as string | null) || null;
+
+  const items: { productId: string; quantity: number }[] = [];
+  let i = 0;
+  while (true) {
+    const productId = formData.get(`product_${i}`) as string | null;
+    if (!productId) break;
+    const quantity = Number(formData.get(`qty_${i}`));
+    if (quantity > 0) items.push({ productId, quantity });
+    i++;
+  }
+
+  if (items.length === 0) return { error: "Add at least one product." };
+
+  await prisma.$transaction(
+    items.flatMap(({ productId, quantity }) => [
+      prisma.stockMovement.create({
+        data: { productId, type: "IN", quantity, note, userId: session.userId },
+      }),
+      prisma.product.update({
+        where: { id: productId },
+        data: { stockQty: { increment: quantity } },
+      }),
+    ])
+  );
+
+  revalidatePath("/stock");
+  redirect("/stock");
+}
+
 export async function deleteProduct(id: string) {
   const session = await verifySession();
   if (session.role !== "ADMIN") return { error: "Unauthorized" };

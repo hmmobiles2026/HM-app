@@ -12,8 +12,8 @@ export type SessionPayload = {
 };
 
 const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
-const ACCESS_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const ACCESS_TTL_MS = 45 * 60 * 1000; // 45 minutes
+const REFRESH_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
 // ── JWT access token ────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export async function signAccessToken(payload: SessionPayload): Promise<string> 
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("15m")
+    .setExpirationTime("45m")
     .sign(secret);
 }
 
