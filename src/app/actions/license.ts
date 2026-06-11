@@ -95,10 +95,13 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
   const license = await prisma.appLicense.findFirst();
   if (!license) return { error: "No license record found." };
 
-  await prisma.appLicense.update({
-    where: { id: license.id },
-    data: { forceDeactivated: true },
-  });
+  await prisma.$transaction([
+    prisma.appLicense.update({
+      where: { id: license.id },
+      data: { forceDeactivated: true },
+    }),
+    prisma.telegramSession.deleteMany({}),
+  ]);
 
   const config = await prisma.telegramConfig.findFirst();
   if (config) {
