@@ -1,3 +1,33 @@
+import { prisma } from "@/lib/prisma";
+
+type LowStockProduct = {
+  name: string;
+  stockQty: number;
+  lowStockThreshold: number;
+  brand: { name: string };
+  model: { name: string } | null;
+};
+
+export async function notifyLowStock(products: LowStockProduct[]): Promise<void> {
+  if (products.length === 0) return;
+
+  const config = await prisma.telegramConfig.findFirst().catch(() => null);
+  if (!config) return;
+
+  const lines = products.map((p) => {
+    const label = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`;
+    const status = p.stockQty === 0 ? "🔴 OUT OF STOCK" : `🟡 ${p.stockQty} left`;
+    return `• ${label}\n  ${status} (threshold: ${p.lowStockThreshold})`;
+  });
+
+  const text =
+    `⚠️ *Low Stock Alert*\n\n` +
+    lines.join("\n\n") +
+    `\n\n_${new Date().toLocaleString("en-LK", { timeZone: "Asia/Colombo" })}_`;
+
+  await sendTelegramMessage(config.botToken, config.chatId, text).catch(() => {});
+}
+
 export async function sendTelegramMessage(
   token: string,
   chatId: string,

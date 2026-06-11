@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/dal";
+import { notifyLowStock } from "@/lib/telegram";
 
 const SaleItemSchema = z.object({
   productId: z.string().min(1),
@@ -104,6 +105,16 @@ export async function createSale(
       });
     }
   });
+
+  // Fire low-stock Telegram alerts (non-blocking)
+  const soldIds = items.map((i) => i.productId);
+  prisma.product.findMany({
+    where: { id: { in: soldIds }, isActive: true },
+    include: { brand: true, model: true },
+  }).then((updated) => {
+    const lowStock = updated.filter((p) => p.stockQty <= p.lowStockThreshold);
+    notifyLowStock(lowStock);
+  }).catch(() => {});
 
   revalidatePath("/sales");
   revalidatePath("/stock");
