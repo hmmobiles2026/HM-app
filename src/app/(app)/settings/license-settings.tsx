@@ -217,7 +217,7 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
             <p className="text-sm font-medium text-red-300">Deactivate License</p>
           </div>
           <p className="text-xs text-slate-500">
-            Immediately disables Telegram alerts. Use if the customer has not paid.
+            Immediately stops all Telegram features — alerts, bot replies, and daily summaries. A payment reminder is sent before shutting down.
           </p>
           {deactivateState?.error && <p className="text-xs text-red-400">{deactivateState.error}</p>}
           {deactivateState?.success && <p className="text-xs text-emerald-400">{deactivateState.success}</p>}

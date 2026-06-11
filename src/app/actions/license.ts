@@ -105,13 +105,15 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
     await sendTelegramMessage(
       config.botToken,
       config.chatId,
-      `🚫 *LICENSE DEACTIVATED — HM Stocks*\n\n` +
-      `Telegram alerts have been disabled by the administrator.\n` +
-      `Contact HM Stocks support to renew your license (LKR 2,000 / 3 months).`
+      `⚠️ *HM Stocks — Action Required*\n\n` +
+      `Your Telegram access has been suspended due to a pending payment.\n\n` +
+      `To restore all features, please renew your license:\n` +
+      `💳 *LKR 2,000 for 3 months*\n\n` +
+      `Contact HM Stocks support to make payment and reactivate.`
     );
   }
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");
-  return { success: "License deactivated. Telegram alerts are now disabled." };
+  return { success: "License deactivated. All Telegram features are now stopped." };
 }
