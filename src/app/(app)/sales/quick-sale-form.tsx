@@ -41,6 +41,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
   const [selectedId, setSelectedId] = useState("");
   const [qty, setQty] = useState(1);
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
+  const [totalInput, setTotalInput] = useState("");
   const [state, formAction, pending] = useActionState(createSale, undefined);
 
   const productItems = products.map((p) => ({
@@ -62,11 +63,13 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     }
     setSelectedId("");
     setQty(1);
+    setTotalInput("");
   }
 
   function removeFromCart(id: string) {
     setCart(cart.filter((c) => c.product.id !== id));
     setPriceInputs((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    setTotalInput("");
   }
 
   function updateQty(id: string, n: number) {
@@ -78,10 +81,14 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     setCart(cart.map((c) => c.product.id === id ? { ...c, customPrice: price } : c));
   }
 
-  const total = cart.reduce((s, c) => {
+  const subtotal = cart.reduce((s, c) => {
     const live = Number(priceInputs[c.product.id]);
     return s + (live >= 1 ? live : c.customPrice) * c.quantity;
   }, 0);
+  const overrideVal = Number(totalInput);
+  const finalTotal = totalInput !== "" && overrideVal >= 1 && overrideVal < subtotal ? overrideVal : subtotal;
+  const discount = subtotal - finalTotal;
+  const scale = subtotal > 0 ? finalTotal / subtotal : 1;
   const selectedProduct = products.find((p) => p.id === selectedId);
 
   return (
@@ -242,9 +249,39 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
 
           {/* Total + submit */}
           <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
+            {discount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <p className="text-slate-500">Subtotal</p>
+                <p className="text-slate-500 line-through tabular-nums">LKR {subtotal.toLocaleString("en-LK")}</p>
+              </div>
+            )}
+            {discount > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1 text-amber-400 font-medium">
+                  <Tag className="h-3.5 w-3.5" /> Discount
+                </span>
+                <span className="text-amber-400 tabular-nums">−LKR {discount.toLocaleString("en-LK")}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <p className="text-slate-400 text-sm font-medium">Total</p>
-              <p className="text-white font-bold text-2xl tabular-nums">LKR {total.toLocaleString("en-LK")}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 text-sm">LKR</span>
+                <input
+                  type="number"
+                  value={totalInput !== "" ? totalInput : String(subtotal)}
+                  onChange={(e) => setTotalInput(e.target.value)}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value);
+                    if (v >= 1 && v < subtotal) {
+                      setTotalInput(String(v));
+                    } else {
+                      setTotalInput("");
+                    }
+                  }}
+                  className="text-white font-bold text-2xl tabular-nums bg-transparent outline-none text-right w-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
             </div>
 
             <form action={formAction} className="space-y-3">
@@ -252,7 +289,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                 <div key={item.product.id}>
                   <input type="hidden" name={`productId_${i}`} value={item.product.id} />
                   <input type="hidden" name={`quantity_${i}`} value={item.quantity} />
-                  <input type="hidden" name={`price_${i}`} value={item.customPrice} />
+                  <input type="hidden" name={`price_${i}`} value={Number((item.customPrice * scale).toFixed(2))} />
                 </div>
               ))}
               <Input name="note" placeholder="Note (optional)"
@@ -265,7 +302,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
               <Button type="submit" disabled={pending || cart.length === 0}
                 className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl font-bold text-base">
                 <ShoppingCart className="h-5 w-5 mr-2" />
-                {pending ? "Processing…" : `Complete Sale — LKR ${total.toLocaleString("en-LK")}`}
+                {pending ? "Processing…" : `Complete Sale — LKR ${finalTotal.toLocaleString("en-LK")}`}
               </Button>
             </form>
           </div>
