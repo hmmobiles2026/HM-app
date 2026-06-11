@@ -1,14 +1,38 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { activateLicense, deactivateLicense, generateLicenseKey } from "@/app/actions/license";
+import { activateLicense, deactivateLicense, generateLicenseKey, startFreeTrial } from "@/app/actions/license";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, ShieldAlert, ShieldOff, Clock, PowerOff, KeyRound, Copy, Check } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldOff, ShieldX, Clock, PowerOff, KeyRound, Copy, Check, Play } from "lucide-react";
 import type { LicenseStatus } from "@/lib/license";
 
 function StatusBadge({ status }: { status: LicenseStatus }) {
+  if (status.trialNotStarted) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/60 border border-slate-700 rounded-xl">
+        <ShieldX className="h-5 w-5 text-slate-400 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-slate-300">Trial Not Started</p>
+          <p className="text-xs text-slate-500 mt-0.5">Telegram alerts are inactive. Admin must activate the free trial.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status.forceDeactivated) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 bg-red-950/50 border border-red-900 rounded-xl">
+        <ShieldOff className="h-5 w-5 text-red-400 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-red-300">Deactivated by Admin</p>
+          <p className="text-xs text-red-400/80 mt-0.5">Telegram alerts are disabled. Contact HM Stocks support.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (status.expired) {
     return (
       <div className="flex items-center gap-3 px-4 py-3 bg-red-950/50 border border-red-900 rounded-xl">
@@ -57,6 +81,7 @@ function StatusBadge({ status }: { status: LicenseStatus }) {
 export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; isAdmin: boolean }) {
   const [state, action, pending] = useActionState(activateLicense, undefined);
   const [deactivateState, deactivateAction, deactivatePending] = useActionState(deactivateLicense, undefined);
+  const [trialState, trialAction, trialPending] = useActionState(startFreeTrial, undefined);
   const [genState, genAction, genPending] = useActionState(generateLicenseKey, undefined);
   const [copied, setCopied] = useState(false);
 
@@ -67,10 +92,41 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const canStartTrial = isAdmin && (status.trialNotStarted || status.forceDeactivated || status.expired);
+  const canDeactivate = isAdmin && status.active;
+
   return (
     <div className="mt-4 space-y-4 max-w-md">
       <StatusBadge status={status} />
 
+      {/* Admin: Start / Re-activate Free Trial */}
+      {canStartTrial && (
+        <div className="bg-slate-900 border border-emerald-900/40 rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Play className="h-4 w-4 text-emerald-400" />
+            <p className="text-sm font-medium text-emerald-300">
+              {status.trialNotStarted ? "Activate Free Trial" : "Re-activate Free Trial"}
+            </p>
+          </div>
+          <p className="text-xs text-slate-500">
+            Starts a fresh 4-month trial from today. Telegram alerts become active immediately.
+          </p>
+          {trialState?.error && <p className="text-xs text-red-400">{trialState.error}</p>}
+          {trialState?.success && <p className="text-xs text-emerald-400">{trialState.success}</p>}
+          <form action={trialAction}>
+            <Button
+              type="submit"
+              disabled={trialPending}
+              className="h-8 text-xs bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg"
+            >
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              {trialPending ? "Activating…" : status.trialNotStarted ? "Start Free Trial" : "Re-activate Free Trial"}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {/* Owner / Admin: Activate with license key */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-slate-400" />
@@ -112,6 +168,7 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
         </form>
       </div>
 
+      {/* Admin: Generate Key */}
       {isAdmin && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -131,9 +188,7 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
               {genPending ? "Generating…" : "Generate Key"}
             </button>
           </form>
-          {genState?.error && (
-            <p className="text-xs text-red-400">{genState.error}</p>
-          )}
+          {genState?.error && <p className="text-xs text-red-400">{genState.error}</p>}
           {genState?.key && (
             <div className="space-y-1.5">
               <p className="text-xs text-slate-500">Copy this key and send to the customer:</p>
@@ -154,7 +209,8 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
         </div>
       )}
 
-      {isAdmin && !status.expired && (
+      {/* Admin: Deactivate */}
+      {canDeactivate && (
         <div className="bg-slate-900 border border-red-900/40 rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2">
             <PowerOff className="h-4 w-4 text-red-400" />
@@ -163,12 +219,8 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
           <p className="text-xs text-slate-500">
             Immediately disables Telegram alerts. Use if the customer has not paid.
           </p>
-          {deactivateState?.error && (
-            <p className="text-xs text-red-400">{deactivateState.error}</p>
-          )}
-          {deactivateState?.success && (
-            <p className="text-xs text-emerald-400">{deactivateState.success}</p>
-          )}
+          {deactivateState?.error && <p className="text-xs text-red-400">{deactivateState.error}</p>}
+          {deactivateState?.success && <p className="text-xs text-emerald-400">{deactivateState.success}</p>}
           <form action={deactivateAction}>
             <Button
               type="submit"

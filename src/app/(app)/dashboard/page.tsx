@@ -97,7 +97,17 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {license.expired && (
+      {license.trialNotStarted && session.role === "ADMIN" && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/80 border border-slate-700 rounded-2xl">
+          <ShieldAlert className="h-5 w-5 text-slate-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-300">Free trial not started</p>
+            <p className="text-xs text-slate-500 mt-0.5">Activate the trial to enable Telegram alerts</p>
+          </div>
+          <Link href="/settings" className="text-xs text-slate-300 underline shrink-0">Activate →</Link>
+        </div>
+      )}
+      {license.expired && !license.trialNotStarted && (
         <div className="flex items-center gap-3 px-4 py-3 bg-red-950/60 border border-red-800 rounded-2xl">
           <ShieldOff className="h-5 w-5 text-red-400 shrink-0" />
           <div className="flex-1 min-w-0">
@@ -109,7 +119,7 @@ export default async function DashboardPage() {
           )}
         </div>
       )}
-      {!license.expired && license.warningSoon && (
+      {!license.trialNotStarted && !license.expired && license.warningSoon && (
         <div className="flex items-center gap-3 px-4 py-3 bg-amber-950/60 border border-amber-800 rounded-2xl">
           <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
           <div className="flex-1 min-w-0">

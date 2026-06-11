@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { getLicenseStatus } from "@/lib/license";
+
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
@@ -22,7 +26,7 @@ export async function POST(req: NextRequest) {
     data: { direction: "IN", from: chatId, to: "bot", message: text },
   });
 
-  const reply = await handleBotMessage(text);
+  const reply = await routeMessage(chatId, text);
   if (reply) {
     await sendTelegramMessage(config.botToken, chatId, reply);
     await prisma.telegramLog.create({
@@ -33,56 +37,139 @@ export async function POST(req: NextRequest) {
   return new Response("OK", { status: 200 });
 }
 
-async function handleBotMessage(text: string): Promise<string | null> {
-  const t = text.toLowerCase();
+async function routeMessage(chatId: string, text: string): Promise<string | null> {
+  const now = new Date();
+  const session = await prisma.telegramSession.findUnique({ where: { chatId } });
+  const isAuthenticated = !!session && session.expiresAt > now;
 
-  // Help
-  if (["/start", "/help", "help", "hi", "hello", "hey"].includes(t)) {
-    return buildHelpMessage();
+  // Logout
+  if (text === "/logout" || text.toLowerCase() === "logout") {
+    if (session) await prisma.telegramSession.delete({ where: { chatId } });
+    return "👋 Logged out. Send your password to log in again.";
   }
 
-  // Summary shortcuts
-  if (["today", "/today", "t"].includes(t)) return buildSummaryMessage("today");
-  if (["week", "/week", "w"].includes(t)) return buildSummaryMessage("week");
-  if (["month", "/month", "m"].includes(t)) return buildSummaryMessage("month");
-  if (t.startsWith("/summary") || t.startsWith("summary")) return buildSummaryMessage(t);
+  if (!isAuthenticated) {
+    // /start or /help before auth
+    if (["/start", "/help"].includes(text.toLowerCase())) {
+      return "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:";
+    }
+    // Treat any non-command message as a password attempt
+    if (!text.startsWith("/") && text.length >= 4) {
+      return await tryAuthenticate(chatId, text, now);
+    }
+    return "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:";
+  }
 
-  // Low stock
+  // Refresh session (extend 24h on every message)
+  await prisma.telegramSession.update({
+    where: { chatId },
+    data: { expiresAt: new Date(now.getTime() + SESSION_TTL_MS) },
+  });
+
+  const role = session.role;
+  const canViewFinancials = role === "OWNER" || role === "ADMIN";
+
+  return handleBotMessage(text, canViewFinancials);
+}
+
+async function tryAuthenticate(chatId: string, password: string, now: Date): Promise<string> {
+  const users = await prisma.user.findMany({ where: { isActive: true } });
+
+  let matchedUser = null;
+  for (const user of users) {
+    if (await bcrypt.compare(password, user.password)) {
+      matchedUser = user;
+      break;
+    }
+  }
+
+  if (!matchedUser) {
+    return "❌ Wrong password. Try again:";
+  }
+
+  await prisma.telegramSession.upsert({
+    where: { chatId },
+    create: {
+      chatId,
+      userId: matchedUser.id,
+      role: matchedUser.role,
+      expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
+    },
+    update: {
+      userId: matchedUser.id,
+      role: matchedUser.role,
+      expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
+    },
+  });
+
+  const canViewFinancials = matchedUser.role === "OWNER" || matchedUser.role === "ADMIN";
+  const commands = canViewFinancials
+    ? "• *today / week / month* — sales summary\n• *stock* — overview\n• *stock samsung* — search\n• *low* — low stock\n• *logout* — sign out"
+    : "• *stock* — stock overview\n• *stock samsung* — search\n• *low* — low stock items\n• *logout* — sign out";
+
+  return (
+    `✅ *Welcome, ${matchedUser.name}!*\n` +
+    `Role: ${matchedUser.role}\n` +
+    `Session active for 24 hours.\n\n` +
+    `Available commands:\n${commands}`
+  );
+}
+
+async function handleBotMessage(text: string, canViewFinancials: boolean): Promise<string | null> {
+  const t = text.toLowerCase();
+
+  const license = await getLicenseStatus();
+  if (!license.active) {
+    return "⚠️ License expired. Telegram features are disabled. Contact HM Stocks support.";
+  }
+
+  if (["/help", "help", "hi", "hello", "hey"].includes(t)) {
+    return buildHelpMessage(canViewFinancials);
+  }
+
+  if (canViewFinancials) {
+    if (["today", "/today", "t"].includes(t)) return buildSummaryMessage("today");
+    if (["week", "/week", "w"].includes(t)) return buildSummaryMessage("week");
+    if (["month", "/month", "m"].includes(t)) return buildSummaryMessage("month");
+    if (t.startsWith("/summary") || t.startsWith("summary")) return buildSummaryMessage(t);
+  } else if (["today", "/today", "week", "/week", "month", "/month", "t", "w", "m"].includes(t)) {
+    return "🚫 Sales summaries are only available to Owner / Admin.";
+  }
+
   if (["/lowstock", "lowstock", "low", "l"].includes(t)) return buildLowStockMessage();
 
-  // Stock search
   if (t === "/stock" || t === "stock" || t === "s") return buildStockMessage("");
   if (t.startsWith("/stock ")) return buildStockMessage(text.slice(7).trim());
   if (t.startsWith("stock ")) return buildStockMessage(text.slice(6).trim());
   if (t.startsWith("s ")) return buildStockMessage(text.slice(2).trim());
 
-  // Fallback — try as a stock search
   if (t.length >= 2) return buildStockMessage(text.trim());
 
   return (
     "❓ I didn't get that.\n\n" +
     "Quick commands:\n" +
-    "• *today* — today's sales\n" +
-    "• *week* — this week\n" +
-    "• *low* — low stock items\n" +
     "• *stock iphone* — search stock\n" +
-    "• *help* — all commands"
+    "• *low* — low stock items\n" +
+    (canViewFinancials ? "• *today* — today's sales\n" : "") +
+    "• *help* — all commands\n" +
+    "• *logout* — sign out"
   );
 }
 
-async function buildHelpMessage(): Promise<string> {
+function buildHelpMessage(canViewFinancials: boolean): string {
   return (
     "🏪 *HM Stocks Bot*\n\n" +
-    "*Sales Summary*\n" +
-    "• today _(or /today, t)_\n" +
-    "• week _(or /week, w)_\n" +
-    "• month _(or /month, m)_\n\n" +
+    (canViewFinancials
+      ? "*Sales Summary*\n• today _(or /today, t)_\n• week _(or /week, w)_\n• month _(or /month, m)_\n\n"
+      : "") +
     "*Stock*\n" +
     "• stock _(overview)_\n" +
     "• stock samsung _(search)_\n" +
     "• s iphone 14 _(short form)_\n\n" +
     "*Alerts*\n" +
     "• low _(or /lowstock)_\n\n" +
+    "*Account*\n" +
+    "• logout\n\n" +
     "_Any unrecognized text is treated as a stock search._"
   );
 }
@@ -170,7 +257,6 @@ async function buildSummaryMessage(text: string): Promise<string> {
   const cost = Number(sales._sum.totalCost ?? 0);
   const margin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : "0";
   const lowCount = Number(lowStock[0]?.count ?? 0);
-
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
 
   return (
@@ -196,9 +282,7 @@ async function buildLowStockMessage(): Promise<string> {
     LIMIT 15
   `;
 
-  if (products.length === 0) {
-    return "✅ *All stock levels are healthy!*";
-  }
+  if (products.length === 0) return "✅ *All stock levels are healthy!*";
 
   const lines = products.map((p) => {
     const name = `${p.brandName}${p.modelName ? ` ${p.modelName}` : ""} ${p.name}`;

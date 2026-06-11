@@ -4,6 +4,7 @@ import { createHmac } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { validateLicenseKey } from "@/lib/license";
+import { sendTelegramMessage } from "@/lib/telegram";
 import { verifyRole } from "@/lib/dal";
 
 export type LicenseActionState = { error?: string; success?: string } | undefined;
@@ -56,11 +57,36 @@ export async function generateLicenseKey(
   const sig = createHmac("sha256", secret).update(data).digest("hex");
   const key = Buffer.from(`${data}:${sig}`).toString("base64url");
 
-  const expiryDate = new Date(expiry).toLocaleDateString("en-LK", {
-    day: "2-digit", month: "long", year: "numeric",
+  return { key, error: undefined };
+}
+
+export async function startFreeTrial(): Promise<LicenseActionState> {
+  await verifyRole(["ADMIN"]);
+
+  let license = await prisma.appLicense.findFirst();
+  if (!license) {
+    license = await prisma.appLicense.create({ data: {} });
+  }
+
+  await prisma.appLicense.update({
+    where: { id: license.id },
+    data: { trialStartedAt: new Date(), forceDeactivated: false },
   });
 
-  return { key, error: undefined };
+  const config = await prisma.telegramConfig.findFirst();
+  if (config) {
+    await sendTelegramMessage(
+      config.botToken,
+      config.chatId,
+      `✅ *FREE TRIAL ACTIVATED — HM Stocks*\n\n` +
+      `Your 4-month free trial has started.\n` +
+      `Telegram alerts are now active.`
+    );
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  return { success: "Free trial activated — 4 months started from today." };
 }
 
 export async function deactivateLicense(): Promise<LicenseActionState> {
@@ -69,11 +95,21 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
   const license = await prisma.appLicense.findFirst();
   if (!license) return { error: "No license record found." };
 
-  // Set licensedUntil to past so it's immediately expired
   await prisma.appLicense.update({
     where: { id: license.id },
-    data: { licensedUntil: new Date(0) },
+    data: { forceDeactivated: true },
   });
+
+  const config = await prisma.telegramConfig.findFirst();
+  if (config) {
+    await sendTelegramMessage(
+      config.botToken,
+      config.chatId,
+      `🚫 *LICENSE DEACTIVATED — HM Stocks*\n\n` +
+      `Telegram alerts have been disabled by the administrator.\n` +
+      `Contact HM Stocks support to renew your license (LKR 2,000 / 3 months).`
+    );
+  }
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");

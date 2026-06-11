@@ -13,6 +13,16 @@ export async function GET(req: Request) {
 
   const license = await getLicenseStatus();
   if (!license.active) {
+    const config = await prisma.telegramConfig.findFirst();
+    if (config) {
+      await sendTelegramMessage(
+        config.botToken,
+        config.chatId,
+        `🔴 *LICENSE EXPIRED — HM Stocks*\n\n` +
+        `Telegram alerts are now disabled.\n` +
+        `Contact HM Stocks support to renew (LKR 2,000 / 3 months).`
+      );
+    }
     return NextResponse.json({ skipped: true, reason: "License expired" });
   }
 
@@ -91,6 +101,13 @@ export async function GET(req: Request) {
       }).join("\n")
     : "✅ All stock levels OK";
 
+  const licenseWarning = license.daysLeft <= 7
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `⏳ *LICENSE EXPIRING SOON*\n` +
+      `${license.isTrial ? "Free trial" : "License"} expires in *${license.daysLeft} day${license.daysLeft !== 1 ? "s" : ""}*.\n` +
+      `Renew now — LKR 2,000 / 3 months.`
+    : "";
+
   const text =
     `📊 *DAILY SUMMARY — HM Stocks*\n` +
     `📅 ${weekday}, ${date}\n` +
@@ -106,7 +123,8 @@ export async function GET(req: Request) {
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `⚠️ *LOW STOCK*\n` +
     `${lowLines}\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━`;
+    `━━━━━━━━━━━━━━━━━━━━` +
+    licenseWarning;
 
   const config = await prisma.telegramConfig.findFirst();
   if (config) {

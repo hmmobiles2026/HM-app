@@ -9,10 +9,12 @@ const LICENSE_SECRET = process.env.LICENSE_SECRET ?? "";
 export type LicenseStatus = {
   active: boolean;
   isTrial: boolean;
+  trialNotStarted: boolean;
+  forceDeactivated: boolean;
   expiresAt: Date;
   daysLeft: number;
   expired: boolean;
-  warningSoon: boolean; // < 30 days left
+  warningSoon: boolean;
 };
 
 export async function getLicenseStatus(): Promise<LicenseStatus> {
@@ -21,8 +23,17 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
     license = await prisma.appLicense.create({ data: {} });
   }
 
-  const trialEnd = addMonths(license.installedAt, TRIAL_MONTHS);
   const now = new Date();
+
+  if (license.forceDeactivated) {
+    return { active: false, isTrial: false, trialNotStarted: false, forceDeactivated: true, expiresAt: now, daysLeft: 0, expired: true, warningSoon: false };
+  }
+
+  if (!license.trialStartedAt && !license.licensedUntil) {
+    return { active: false, isTrial: true, trialNotStarted: true, forceDeactivated: false, expiresAt: now, daysLeft: 0, expired: false, warningSoon: false };
+  }
+
+  const trialEnd = license.trialStartedAt ? addMonths(license.trialStartedAt, TRIAL_MONTHS) : now;
 
   const expiresAt =
     license.licensedUntil && license.licensedUntil > trialEnd
@@ -33,7 +44,7 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
   const active = now < expiresAt;
   const daysLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 86400000));
 
-  return { active, isTrial, expiresAt, daysLeft, expired: !active, warningSoon: daysLeft < 30 };
+  return { active, isTrial, trialNotStarted: false, forceDeactivated: false, expiresAt, daysLeft, expired: !active, warningSoon: daysLeft < 30 };
 }
 
 export function validateLicenseKey(key: string): { valid: boolean; expiresAt?: Date; error?: string } {
