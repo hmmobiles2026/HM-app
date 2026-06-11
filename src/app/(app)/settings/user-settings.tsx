@@ -70,10 +70,6 @@ export function UserSettings({ users }: { users: User[] }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="text-slate-300 text-xs">WhatsApp Number (optional)</Label>
-              <Input name="whatsappNumber" placeholder="+94771234567" className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-500" />
-            </div>
           </div>
           {state?.error && <p className="text-xs text-red-400">{state.error}</p>}
           <div className="flex gap-2 pt-1">
