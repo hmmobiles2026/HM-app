@@ -6,6 +6,11 @@ import { getLicenseStatus } from "@/lib/license";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
+const DEACTIVATED_MSG =
+  `🚫 *HM Stocks — Service Inactive*\n\n` +
+  `Telegram access has been disabled.\n` +
+  `Contact HM Stocks support to reactivate your license.`;
+
 export async function POST(req: NextRequest) {
   const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
   if (!config) return new Response("OK", { status: 200 });
@@ -20,13 +25,27 @@ export async function POST(req: NextRequest) {
   if (!message) return new Response("OK", { status: 200 });
 
   const chatId = String(message.chat.id);
+  const messageId: number = message.message_id;
   const text: string = (message.text ?? "").trim();
 
   await prisma.telegramLog.create({
     data: { direction: "IN", from: chatId, to: "bot", message: text },
   });
 
-  const reply = await routeMessage(chatId, text);
+  // If license is not active, only reply with the deactivated message
+  const license = await getLicenseStatus();
+  if (!license.active) {
+    await sendTelegramMessage(config.botToken, chatId, DEACTIVATED_MSG);
+    return new Response("OK", { status: 200 });
+  }
+
+  const { reply, deleteInput } = await routeMessage(chatId, text, messageId, config.botToken);
+
+  // Delete the user's password message for security
+  if (deleteInput) {
+    await deleteTelegramMessage(config.botToken, chatId, messageId).catch(() => {});
+  }
+
   if (reply) {
     await sendTelegramMessage(config.botToken, chatId, reply);
     await prisma.telegramLog.create({
@@ -37,7 +56,12 @@ export async function POST(req: NextRequest) {
   return new Response("OK", { status: 200 });
 }
 
-async function routeMessage(chatId: string, text: string): Promise<string | null> {
+async function routeMessage(
+  chatId: string,
+  text: string,
+  _messageId: number,
+  _botToken: string
+): Promise<{ reply: string | null; deleteInput: boolean }> {
   const now = new Date();
   const session = await prisma.telegramSession.findUnique({ where: { chatId } });
   const isAuthenticated = !!session && session.expiresAt > now;
@@ -45,31 +69,29 @@ async function routeMessage(chatId: string, text: string): Promise<string | null
   // Logout
   if (text === "/logout" || text.toLowerCase() === "logout") {
     if (session) await prisma.telegramSession.delete({ where: { chatId } });
-    return "👋 Logged out. Send your password to log in again.";
+    return { reply: "👋 Logged out. Send your password to log in again.", deleteInput: false };
   }
 
   if (!isAuthenticated) {
-    // /start or /help before auth
     if (["/start", "/help"].includes(text.toLowerCase())) {
-      return "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:";
+      return { reply: "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:", deleteInput: false };
     }
-    // Treat any non-command message as a password attempt
     if (!text.startsWith("/") && text.length >= 4) {
-      return await tryAuthenticate(chatId, text, now);
+      const reply = await tryAuthenticate(chatId, text, now);
+      return { reply, deleteInput: true };
     }
-    return "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:";
+    return { reply: "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:", deleteInput: false };
   }
 
-  // Refresh session (extend 24h on every message)
+  // Refresh session on every message
   await prisma.telegramSession.update({
     where: { chatId },
     data: { expiresAt: new Date(now.getTime() + SESSION_TTL_MS) },
   });
 
-  const role = session.role;
-  const canViewFinancials = role === "OWNER" || role === "ADMIN";
-
-  return handleBotMessage(text, canViewFinancials);
+  const canViewFinancials = session.role === "OWNER" || session.role === "ADMIN";
+  const reply = await handleBotMessage(text, canViewFinancials);
+  return { reply, deleteInput: false };
 }
 
 async function tryAuthenticate(chatId: string, password: string, now: Date): Promise<string> {
@@ -115,13 +137,16 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
   );
 }
 
+async function deleteTelegramMessage(token: string, chatId: string, messageId: number): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+  });
+}
+
 async function handleBotMessage(text: string, canViewFinancials: boolean): Promise<string | null> {
   const t = text.toLowerCase();
-
-  const license = await getLicenseStatus();
-  if (!license.active) {
-    return "⚠️ License expired. Telegram features are disabled. Contact HM Stocks support.";
-  }
 
   if (["/help", "help", "hi", "hello", "hey"].includes(t)) {
     return buildHelpMessage(canViewFinancials);
