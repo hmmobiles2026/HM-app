@@ -16,7 +16,7 @@ export async function GET() {
     }),
     prisma.sale.findMany({
       include: {
-        seller: { select: { name: true, email: true } },
+        seller: { select: { name: true } },
         items: { include: { product: { select: { name: true } } } },
       },
       orderBy: { createdAt: "desc" },

@@ -94,49 +94,34 @@ async function main() {
   console.log("✓ 5 brands + models seeded");
 
   // Admin user
-  const adminPw = await bcrypt.hash("admin123", 10);
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@hmstocks.lk" },
+  const adminPw = await bcrypt.hash("Admin@1234", 10);
+  await prisma.user.upsert({
+    where: { username: "admin" },
     update: {},
-    create: {
-      name: "Admin",
-      email: "admin@hmstocks.lk",
-      password: adminPw,
-      role: "ADMIN",
-    },
+    create: { name: "Admin", username: "admin", password: adminPw, role: "ADMIN" },
   });
 
   // Owner user
-  const ownerPw = await bcrypt.hash("owner123", 10);
-  const owner = await prisma.user.upsert({
-    where: { email: "owner@hmstocks.lk" },
+  const ownerPw = await bcrypt.hash("Owner@1234", 10);
+  await prisma.user.upsert({
+    where: { username: "owner" },
     update: {},
-    create: {
-      name: "Shop Owner",
-      email: "owner@hmstocks.lk",
-      password: ownerPw,
-      role: "OWNER",
-    },
+    create: { name: "Shop Owner", username: "owner", password: ownerPw, role: "OWNER" },
   });
 
   // Seller user
-  const sellerPw = await bcrypt.hash("seller123", 10);
+  const sellerPw = await bcrypt.hash("Seller@1234", 10);
   await prisma.user.upsert({
-    where: { email: "seller@hmstocks.lk" },
+    where: { username: "seller" },
     update: {},
-    create: {
-      name: "Seller",
-      email: "seller@hmstocks.lk",
-      password: sellerPw,
-      role: "SELLER",
-    },
+    create: { name: "Seller", username: "seller", password: sellerPw, role: "SELLER" },
   });
 
   console.log("✓ 3 users seeded");
   console.log("\n📋 Login credentials:");
-  console.log("  Admin:  admin@hmstocks.lk  / admin123");
-  console.log("  Owner:  owner@hmstocks.lk  / owner123");
-  console.log("  Seller: seller@hmstocks.lk / seller123");
+  console.log("  Admin:  username=admin  / Admin@1234");
+  console.log("  Owner:  username=owner  / Owner@1234");
+  console.log("  Seller: username=seller / Seller@1234");
   console.log("\n⚠️  Change all passwords after first login!");
 }
 

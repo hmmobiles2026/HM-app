@@ -88,7 +88,7 @@ export async function deleteCategory(id: string): Promise<ActionState> {
 
 const UserSchema = z.object({
   name: z.string().min(2),
-  email: z.string().email(),
+  username: z.string().min(3).regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers and underscores"),
   password: z.string().min(6),
   role: z.enum(["ADMIN", "OWNER", "SELLER"]),
   whatsappNumber: z.string().optional(),
@@ -113,7 +113,7 @@ export async function createUser(
     revalidatePath("/settings");
     return { success: `User "${rest.name}" created.` };
   } catch {
-    return { error: "Email already in use." };
+    return { error: "Username already taken." };
   }
 }
 

@@ -7,41 +7,41 @@ import { prisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
 
 const LoginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(1),
   password: z.string().min(1),
 });
 
 export type LoginState = { error?: string } | undefined;
 
-// In-memory rate limiter: key = email, value = { attempts, resetAt }
+// In-memory rate limiter: key = username, value = { attempts, resetAt }
 // Not persistent across serverless restarts but significantly slows burst attacks
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const FAIL_DELAY_MS = 800; // artificial delay on every failure
 
-function isRateLimited(email: string): boolean {
-  const entry = loginAttempts.get(email);
+function isRateLimited(username: string): boolean {
+  const entry = loginAttempts.get(username);
   if (!entry) return false;
   if (Date.now() > entry.resetAt) {
-    loginAttempts.delete(email);
+    loginAttempts.delete(username);
     return false;
   }
   return entry.count >= MAX_ATTEMPTS;
 }
 
-function recordFailedAttempt(email: string) {
+function recordFailedAttempt(username: string) {
   const now = Date.now();
-  const entry = loginAttempts.get(email);
+  const entry = loginAttempts.get(username);
   if (!entry || now > entry.resetAt) {
-    loginAttempts.set(email, { count: 1, resetAt: now + WINDOW_MS });
+    loginAttempts.set(username, { count: 1, resetAt: now + WINDOW_MS });
   } else {
     entry.count++;
   }
 }
 
-function clearAttempts(email: string) {
-  loginAttempts.delete(email);
+function clearAttempts(username: string) {
+  loginAttempts.delete(username);
 }
 
 export async function login(
@@ -49,19 +49,19 @@ export async function login(
   formData: FormData
 ): Promise<LoginState> {
   const parsed = LoginSchema.safeParse({
-    email: formData.get("email"),
+    username: formData.get("username"),
     password: formData.get("password"),
   });
 
-  if (!parsed.success) return { error: "Invalid email or password." };
+  if (!parsed.success) return { error: "Invalid username or password." };
 
-  const { email, password } = parsed.data;
+  const { username, password } = parsed.data;
 
-  if (isRateLimited(email)) {
+  if (isRateLimited(username)) {
     return { error: "Too many failed attempts. Please wait 15 minutes and try again." };
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { username } });
 
   // Always run bcrypt compare to prevent timing-based user enumeration
   const fakeHash = "$2b$10$invalidhashpaddingtomakethisrealisticlooking000000000";
@@ -70,12 +70,12 @@ export async function login(
     : await bcrypt.compare(password, fakeHash).then(() => false);
 
   if (!valid) {
-    recordFailedAttempt(email);
+    recordFailedAttempt(username);
     await new Promise((r) => setTimeout(r, FAIL_DELAY_MS));
-    return { error: "Invalid email or password." };
+    return { error: "Invalid username or password." };
   }
 
-  clearAttempts(email);
+  clearAttempts(username);
   await createSession({ userId: user!.id, role: user!.role, name: user!.name });
 
   redirect("/dashboard");

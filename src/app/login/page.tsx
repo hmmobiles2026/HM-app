@@ -42,16 +42,16 @@ export default function LoginPage() {
           <CardContent>
             <form action={action} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-slate-300">
-                  Email
+                <Label htmlFor="username" className="text-slate-300">
+                  Username
                 </Label>
                 <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="Enter your username"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                   className="h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 rounded-xl"
                 />
               </div>

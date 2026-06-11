@@ -79,7 +79,7 @@ export async function sendTelegramFileBackup(): Promise<BackupState> {
     prisma.product.findMany({ include: { brand: true, model: true, category: true } }),
     prisma.sale.findMany({
       include: {
-        seller: { select: { name: true, email: true } },
+        seller: { select: { name: true } },
         items: { include: { product: { select: { name: true } } } },
       },
       orderBy: { createdAt: "desc" },

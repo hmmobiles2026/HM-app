@@ -18,7 +18,7 @@ enum Role {
 model User {
   id             String   @id @default(cuid())
   name           String
-  email          String   @unique
+  username       String   @unique
   password       String
   role           Role     @default(SELLER)
   whatsappNumber String?

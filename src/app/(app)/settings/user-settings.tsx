@@ -50,8 +50,8 @@ export function UserSettings({ users }: { users: User[] }) {
               <Input name="name" required className="bg-slate-800 border-slate-700 text-white h-8 text-sm" />
             </div>
             <div className="space-y-1">
-              <Label className="text-slate-300 text-xs">Email</Label>
-              <Input name="email" type="email" required className="bg-slate-800 border-slate-700 text-white h-8 text-sm" />
+              <Label className="text-slate-300 text-xs">Username</Label>
+              <Input name="username" type="text" required placeholder="letters, numbers, _" className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-600" />
             </div>
             <div className="space-y-1">
               <Label className="text-slate-300 text-xs">Password</Label>
@@ -100,7 +100,7 @@ export function UserSettings({ users }: { users: User[] }) {
                   {u.role.charAt(0) + u.role.slice(1).toLowerCase()}
                 </Badge>
               </div>
-              <p className="text-xs text-slate-300 truncate">{u.email}</p>
+              <p className="text-xs text-slate-300 truncate">@{u.username}</p>
             </div>
             <form action={async () => {
               const r = await toggleUserActive(u.id, !u.isActive);

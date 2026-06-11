@@ -40,6 +40,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [qty, setQty] = useState(1);
+  const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [state, formAction, pending] = useActionState(createSale, undefined);
 
   const productItems = products.map((p) => ({
@@ -55,13 +56,18 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     if (existing) {
       setCart(cart.map((c) => c.product.id === selectedId ? { ...c, quantity: c.quantity + qty } : c));
     } else {
-      setCart([...cart, { product, quantity: qty, customPrice: Number(product.sellingPrice) }]);
+      const price = Number(product.sellingPrice);
+      setCart([...cart, { product, quantity: qty, customPrice: price }]);
+      setPriceInputs((prev) => ({ ...prev, [product.id]: String(price) }));
     }
     setSelectedId("");
     setQty(1);
   }
 
-  function removeFromCart(id: string) { setCart(cart.filter((c) => c.product.id !== id)); }
+  function removeFromCart(id: string) {
+    setCart(cart.filter((c) => c.product.id !== id));
+    setPriceInputs((prev) => { const next = { ...prev }; delete next[id]; return next; });
+  }
 
   function updateQty(id: string, n: number) {
     if (n < 1) return;
@@ -72,7 +78,10 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     setCart(cart.map((c) => c.product.id === id ? { ...c, customPrice: price } : c));
   }
 
-  const total = cart.reduce((s, c) => s + c.customPrice * c.quantity, 0);
+  const total = cart.reduce((s, c) => {
+    const live = Number(priceInputs[c.product.id]);
+    return s + (live >= 1 ? live : c.customPrice) * c.quantity;
+  }, 0);
   const selectedProduct = products.find((p) => p.id === selectedId);
 
   return (
@@ -187,12 +196,20 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                     <input
                       type="number"
                       min={1}
-                      value={item.customPrice}
-                      onChange={(e) => {
+                      value={priceInputs[item.product.id] ?? String(item.customPrice)}
+                      onChange={(e) =>
+                        setPriceInputs((prev) => ({ ...prev, [item.product.id]: e.target.value }))
+                      }
+                      onBlur={(e) => {
                         const v = Number(e.target.value);
-                        if (v > 0) updatePrice(item.product.id, v);
+                        if (v >= 1) {
+                          updatePrice(item.product.id, v);
+                          setPriceInputs((prev) => ({ ...prev, [item.product.id]: String(v) }));
+                        } else {
+                          setPriceInputs((prev) => ({ ...prev, [item.product.id]: String(item.customPrice) }));
+                        }
                       }}
-                      className="flex-1 bg-transparent text-sm text-white font-medium outline-none min-w-0 tabular-nums"
+                      className="flex-1 bg-transparent text-sm text-white font-medium outline-none min-w-0 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     {isDiscounted && (
                       <span className="text-xs text-slate-500 line-through shrink-0">
