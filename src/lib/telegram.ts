@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getLicenseStatus } from "@/lib/license";
 
 type LowStockProduct = {
   name: string;
@@ -11,8 +12,11 @@ type LowStockProduct = {
 export async function notifyLowStock(products: LowStockProduct[]): Promise<void> {
   if (products.length === 0) return;
 
-  const config = await prisma.telegramConfig.findFirst().catch(() => null);
-  if (!config) return;
+  const [license, config] = await Promise.all([
+    getLicenseStatus(),
+    prisma.telegramConfig.findFirst().catch(() => null),
+  ]);
+  if (!license.active || !config) return;
 
   const now = new Date().toLocaleString("en-LK", {
     timeZone: "Asia/Colombo",

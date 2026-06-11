@@ -1,16 +1,18 @@
 ﻿import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getLicenseStatus } from "@/lib/license";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandSettings } from "./brand-settings";
 import { ModelSettings } from "./model-settings";
 import { CategorySettings } from "./category-settings";
 import { UserSettings } from "./user-settings";
 import { BackupSettings } from "./backup-settings";
+import { LicenseSettings } from "./license-settings";
 
 export default async function SettingsPage() {
   const session = await verifyRole(["ADMIN", "OWNER"]);
 
-  const [brands, categories, users] = await Promise.all([
+  const [brands, categories, users, licenseStatus] = await Promise.all([
     prisma.brand.findMany({
       include: { models: { orderBy: { name: "asc" } } },
       orderBy: { name: "asc" },
@@ -19,6 +21,7 @@ export default async function SettingsPage() {
     session.role === "ADMIN"
       ? prisma.user.findMany({ orderBy: { name: "asc" } })
       : [],
+    getLicenseStatus(),
   ]);
 
   return (
@@ -46,6 +49,11 @@ export default async function SettingsPage() {
               Backup
             </TabsTrigger>
           )}
+          {session.role === "ADMIN" && (
+            <TabsTrigger value="license" className="text-white data-active:bg-blue-600 data-active:text-white">
+              License
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="brands">
@@ -65,6 +73,11 @@ export default async function SettingsPage() {
         {session.role === "ADMIN" && (
           <TabsContent value="backup">
             <BackupSettings />
+          </TabsContent>
+        )}
+        {session.role === "ADMIN" && (
+          <TabsContent value="license">
+            <LicenseSettings status={licenseStatus} />
           </TabsContent>
         )}
       </Tabs>

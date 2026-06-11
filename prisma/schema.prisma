@@ -183,6 +183,15 @@ model SaleReturn {
   @@index([saleItemId])
 }
 
+// ─── Licensing ───────────────────────────────────────────────────────────────
+
+model AppLicense {
+  id            String    @id @default(cuid())
+  installedAt   DateTime  @default(now())
+  licensedUntil DateTime?
+  updatedAt     DateTime  @updatedAt
+}
+
 // ─── WhatsApp ─────────────────────────────────────────────────────────────────
 
 model WhatsAppConfig {

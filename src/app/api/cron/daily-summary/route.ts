@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { getLicenseStatus } from "@/lib/license";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,11 @@ export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const license = await getLicenseStatus();
+  if (!license.active) {
+    return NextResponse.json({ skipped: true, reason: "License expired" });
   }
 
   // Today in Sri Lanka time (UTC+5:30)
