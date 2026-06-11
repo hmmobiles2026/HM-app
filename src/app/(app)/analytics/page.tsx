@@ -1,6 +1,8 @@
 ﻿import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { AnalyticsCharts } from "./analytics-charts";
+import Link from "next/link";
+import { TrendingUp } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -130,11 +132,16 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-white">Analytics</h1>
-        <p className="text-slate-300 text-sm mt-0.5">
-          Revenue, cost, and profit breakdown
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-white">Analytics</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Revenue, cost, and profit breakdown</p>
+        </div>
+        <Link href="/analytics/performance"
+          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors">
+          <TrendingUp className="h-4 w-4" />
+          Product Performance →
+        </Link>
       </div>
       <AnalyticsCharts data={data} />
     </div>

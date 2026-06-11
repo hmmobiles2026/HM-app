@@ -26,13 +26,18 @@ export async function createSale(
   const session = await verifySession();
 
   const rawItems: { productId: string; quantity: number }[] = [];
+  const customPrices: Record<string, number> = {};
   const keys = [...new Set([...formData.keys()].filter((k) => k.startsWith("productId_")))];
 
   for (const key of keys) {
     const idx = key.replace("productId_", "");
     const productId = formData.get(`productId_${idx}`) as string;
     const quantity = Number(formData.get(`quantity_${idx}`));
-    if (productId && quantity > 0) rawItems.push({ productId, quantity });
+    const priceVal = Number(formData.get(`price_${idx}`));
+    if (productId && quantity > 0) {
+      rawItems.push({ productId, quantity });
+      if (priceVal > 0) customPrices[productId] = priceVal;
+    }
   }
 
   const parsed = CreateSaleSchema.safeParse({
@@ -63,16 +68,11 @@ export async function createSale(
 
   const saleItems = items.map((item) => {
     const product = products.find((p) => p.id === item.productId)!;
-    const revenue = Number(product.sellingPrice) * item.quantity;
-    const cost = Number(product.costPrice) * item.quantity;
-    totalRevenue += revenue;
-    totalCost += cost;
-    return {
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPrice: Number(product.sellingPrice),
-      unitCost: Number(product.costPrice),
-    };
+    const unitPrice = customPrices[item.productId] ?? Number(product.sellingPrice);
+    const unitCost = Number(product.costPrice);
+    totalRevenue += unitPrice * item.quantity;
+    totalCost += unitCost * item.quantity;
+    return { productId: item.productId, quantity: item.quantity, unitPrice, unitCost };
   });
 
   const profit = totalRevenue - totalCost;

@@ -5,7 +5,7 @@ import { createSale } from "@/app/actions/sales";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, ShoppingCart, Minus } from "lucide-react";
+import { Plus, Trash2, ShoppingCart, Minus, Tag } from "lucide-react";
 import type { Product, Brand, PhoneModel, Category } from "@/generated/prisma/client";
 
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
@@ -16,7 +16,11 @@ type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   category: Category;
 };
 
-type CartItem = { product: ProductWithRelations; quantity: number };
+type CartItem = {
+  product: ProductWithRelations;
+  quantity: number;
+  customPrice: number;
+};
 
 const gradeLabel: Record<string, string> = {
   ORIGINAL: "Original",
@@ -51,7 +55,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     if (existing) {
       setCart(cart.map((c) => c.product.id === selectedId ? { ...c, quantity: c.quantity + qty } : c));
     } else {
-      setCart([...cart, { product, quantity: qty }]);
+      setCart([...cart, { product, quantity: qty, customPrice: Number(product.sellingPrice) }]);
     }
     setSelectedId("");
     setQty(1);
@@ -64,7 +68,11 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     setCart(cart.map((c) => c.product.id === id ? { ...c, quantity: n } : c));
   }
 
-  const total = cart.reduce((s, c) => s + Number(c.product.sellingPrice) * c.quantity, 0);
+  function updatePrice(id: string, price: number) {
+    setCart(cart.map((c) => c.product.id === id ? { ...c, customPrice: price } : c));
+  }
+
+  const total = cart.reduce((s, c) => s + c.customPrice * c.quantity, 0);
   const selectedProduct = products.find((p) => p.id === selectedId);
 
   return (
@@ -74,7 +82,6 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
       <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Add Product</p>
 
-        {/* Combobox — full width on all screen sizes */}
         <Combobox
           name="_productPicker"
           items={productItems}
@@ -83,7 +90,6 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
           placeholder="Search by brand, model or part name…"
         />
 
-        {/* Selected product preview */}
         {selectedProduct && (
           <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-xl">
             {selectedProduct.imageUrl ? (
@@ -105,35 +111,21 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
           </div>
         )}
 
-        {/* Qty + Add — always on own row so combobox gets full width */}
         <div className="flex items-center gap-3">
-          {/* Qty stepper */}
           <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl overflow-hidden h-11">
-            <button
-              type="button"
-              onClick={() => setQty(Math.max(1, qty - 1))}
-              className="px-4 h-full text-slate-300 hover:text-white active:bg-slate-700 transition-colors"
-            >
+            <button type="button" onClick={() => setQty(Math.max(1, qty - 1))}
+              className="px-4 h-full text-slate-300 hover:text-white active:bg-slate-700 transition-colors">
               <Minus className="h-4 w-4" />
             </button>
             <span className="w-10 text-center text-base text-white font-semibold select-none">{qty}</span>
-            <button
-              type="button"
-              onClick={() => setQty(qty + 1)}
+            <button type="button" onClick={() => setQty(qty + 1)}
               disabled={!!(selectedProduct && qty >= selectedProduct.stockQty)}
-              className="px-4 h-full text-slate-300 hover:text-white active:bg-slate-700 disabled:opacity-30 transition-colors"
-            >
+              className="px-4 h-full text-slate-300 hover:text-white active:bg-slate-700 disabled:opacity-30 transition-colors">
               <Plus className="h-4 w-4" />
             </button>
           </div>
-
-          {/* Add button */}
-          <Button
-            type="button"
-            onClick={addToCart}
-            disabled={!selectedId}
-            className="flex-1 h-11 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl text-sm font-semibold"
-          >
+          <Button type="button" onClick={addToCart} disabled={!selectedId}
+            className="flex-1 h-11 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl text-sm font-semibold">
             <Plus className="h-4 w-4 mr-1.5" />
             Add to Cart
           </Button>
@@ -147,70 +139,91 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
             Cart ({cart.length} item{cart.length > 1 ? "s" : ""})
           </p>
 
-          {cart.map((item) => (
-            <div key={item.product.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2.5">
-              {/* Row 1: image + name + delete */}
-              <div className="flex items-center gap-2.5">
-                {item.product.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.product.imageUrl}
-                    alt={item.product.name}
-                    className="h-11 w-11 rounded-xl object-cover shrink-0 ring-1 ring-slate-700"
-                  />
-                ) : (
-                  <div className="h-11 w-11 rounded-xl bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
-                    <span className="text-slate-300 text-sm font-bold">{item.product.name.charAt(0)}</span>
+          {cart.map((item) => {
+            const originalPrice = Number(item.product.sellingPrice);
+            const isDiscounted = item.customPrice < originalPrice;
+            const discountAmt = originalPrice - item.customPrice;
+
+            return (
+              <div key={item.product.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2.5">
+                {/* Row 1: image + name + delete */}
+                <div className="flex items-center gap-2.5">
+                  {item.product.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.product.imageUrl} alt={item.product.name}
+                      className="h-11 w-11 rounded-xl object-cover shrink-0 ring-1 ring-slate-700" />
+                  ) : (
+                    <div className="h-11 w-11 rounded-xl bg-slate-800 border border-slate-700 shrink-0 flex items-center justify-center">
+                      <span className="text-slate-300 text-sm font-bold">{item.product.name.charAt(0)}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white leading-snug truncate">
+                      {item.product.brand.name}{item.product.model ? ` ${item.product.model.name}` : ""} — {item.product.name}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${gradeBadge[item.product.qualityGrade]}`}>
+                        {gradeLabel[item.product.qualityGrade]}
+                      </span>
+                      {isDiscounted && (
+                        <span className="flex items-center gap-1 text-xs text-amber-400 font-medium">
+                          <Tag className="h-3 w-3" />
+                          −LKR {discountAmt.toLocaleString("en-LK")}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white leading-snug truncate">
-                    {item.product.brand.name}{item.product.model ? ` ${item.product.model.name}` : ""} — {item.product.name}
+                  <button type="button" onClick={() => removeFromCart(item.product.id)}
+                    className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-400/10 active:bg-red-400/20 transition-colors shrink-0">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Row 2: editable price + qty stepper + subtotal */}
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+                  {/* Editable unit price */}
+                  <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl px-2.5 h-9 min-w-0 flex-1">
+                    <span className="text-xs text-slate-400 shrink-0">LKR</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={item.customPrice}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (v > 0) updatePrice(item.product.id, v);
+                      }}
+                      className="flex-1 bg-transparent text-sm text-white font-medium outline-none min-w-0 tabular-nums"
+                    />
+                    {isDiscounted && (
+                      <span className="text-xs text-slate-500 line-through shrink-0">
+                        {originalPrice.toLocaleString("en-LK")}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Qty stepper */}
+                  <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shrink-0">
+                    <button type="button" onClick={() => updateQty(item.product.id, item.quantity - 1)}
+                      className="px-2.5 py-2 text-slate-400 hover:text-white active:bg-slate-700 transition-colors">
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-7 text-center text-sm text-white font-semibold select-none">{item.quantity}</span>
+                    <button type="button" onClick={() => updateQty(item.product.id, item.quantity + 1)}
+                      disabled={item.quantity >= item.product.stockQty}
+                      className="px-2.5 py-2 text-slate-400 hover:text-white active:bg-slate-700 disabled:opacity-30 transition-colors">
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <p className="text-sm font-bold text-white tabular-nums shrink-0 min-w-[72px] text-right">
+                    LKR {(item.customPrice * item.quantity).toLocaleString("en-LK")}
                   </p>
-                  <span className={`inline-block mt-0.5 text-xs px-2 py-0.5 rounded-full font-medium ${gradeBadge[item.product.qualityGrade]}`}>
-                    {gradeLabel[item.product.qualityGrade]}
-                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeFromCart(item.product.id)}
-                  className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-400/10 active:bg-red-400/20 transition-colors shrink-0"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
+            );
+          })}
 
-              {/* Row 2: qty stepper + subtotal */}
-              <div className="flex items-center gap-3 pt-1 border-t border-slate-800">
-                <span className="text-xs text-slate-400">LKR {Number(item.product.sellingPrice).toLocaleString("en-LK")} each</span>
-                <div className="flex-1" />
-                {/* Qty stepper */}
-                <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => updateQty(item.product.id, item.quantity - 1)}
-                    className="px-3 py-2 text-slate-400 hover:text-white active:bg-slate-700 transition-colors"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="w-8 text-center text-sm text-white font-semibold select-none">{item.quantity}</span>
-                  <button
-                    type="button"
-                    onClick={() => updateQty(item.product.id, item.quantity + 1)}
-                    disabled={item.quantity >= item.product.stockQty}
-                    className="px-3 py-2 text-slate-400 hover:text-white active:bg-slate-700 disabled:opacity-30 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <p className="text-sm font-bold text-white tabular-nums min-w-[80px] text-right">
-                  LKR {(Number(item.product.sellingPrice) * item.quantity).toLocaleString("en-LK")}
-                </p>
-              </div>
-            </div>
-          ))}
-
-          {/* Total + complete */}
+          {/* Total + submit */}
           <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-slate-400 text-sm font-medium">Total</p>
@@ -222,23 +235,18 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                 <div key={item.product.id}>
                   <input type="hidden" name={`productId_${i}`} value={item.product.id} />
                   <input type="hidden" name={`quantity_${i}`} value={item.quantity} />
+                  <input type="hidden" name={`price_${i}`} value={item.customPrice} />
                 </div>
               ))}
-              <Input
-                name="note"
-                placeholder="Note (optional)"
-                className="h-11 rounded-xl bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-              />
+              <Input name="note" placeholder="Note (optional)"
+                className="h-11 rounded-xl bg-slate-800 border-slate-700 text-white placeholder:text-slate-500" />
               {state?.error && (
                 <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-xl px-4 py-2.5">
                   {state.error}
                 </p>
               )}
-              <Button
-                type="submit"
-                disabled={pending || cart.length === 0}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl font-bold text-base"
-              >
+              <Button type="submit" disabled={pending || cart.length === 0}
+                className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl font-bold text-base">
                 <ShoppingCart className="h-5 w-5 mr-2" />
                 {pending ? "Processing…" : `Complete Sale — LKR ${total.toLocaleString("en-LK")}`}
               </Button>

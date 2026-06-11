@@ -13,6 +13,9 @@ import {
   LogOut,
   ShieldCheck,
   ChevronRight,
+  TrendingUp,
+  RefreshCcw,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/app/actions/auth";
@@ -48,6 +51,24 @@ const navItems: NavItem[] = [
     label: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+    roles: ["ADMIN", "OWNER"],
+  },
+  {
+    label: "Performance",
+    href: "/analytics/performance",
+    icon: TrendingUp,
+    roles: ["ADMIN", "OWNER"],
+  },
+  {
+    label: "Reorder",
+    href: "/stock/reorder",
+    icon: RefreshCcw,
+    roles: ["ADMIN", "OWNER"],
+  },
+  {
+    label: "Valuation",
+    href: "/stock/valuation",
+    icon: Layers,
     roles: ["ADMIN", "OWNER"],
   },
   {

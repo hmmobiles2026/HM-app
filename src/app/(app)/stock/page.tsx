@@ -4,7 +4,7 @@ import { StockList } from "./stock-list";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, RefreshCcw, Layers } from "lucide-react";
 
 async function getStock(searchParams: {
   q?: string;
@@ -80,18 +80,28 @@ export default async function StockPage({
             {products.length} products
           </p>
         </div>
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            <Link href="/stock/import" className={cn(buttonVariants({ variant: "outline" }), "border-slate-700 text-slate-300 hover:text-white")}>
-              <Upload className="h-4 w-4 mr-1.5" />
-              Import CSV
-            </Link>
-            <Link href="/stock/new" className={cn(buttonVariants(), "bg-blue-600 hover:bg-blue-500")}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Add Product
-            </Link>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <Link href="/stock/reorder" className="flex items-center gap-1.5 text-sm text-amber-400 hover:text-amber-300 transition-colors">
+            <RefreshCcw className="h-3.5 w-3.5" />
+            Reorder
+          </Link>
+          <Link href="/stock/valuation" className="flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition-colors">
+            <Layers className="h-3.5 w-3.5" />
+            Valuation
+          </Link>
+          {canEdit && (
+            <>
+              <Link href="/stock/import" className={cn(buttonVariants({ variant: "outline" }), "border-slate-700 text-slate-300 hover:text-white h-9 text-sm")}>
+                <Upload className="h-4 w-4 mr-1.5" />
+                Import CSV
+              </Link>
+              <Link href="/stock/new" className={cn(buttonVariants(), "bg-blue-600 hover:bg-blue-500 h-9 text-sm")}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add Product
+              </Link>
+            </>
+          )}
+        </div>
       </div>
       <StockList
         products={products}

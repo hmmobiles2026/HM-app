@@ -14,16 +14,26 @@ export async function notifyLowStock(products: LowStockProduct[]): Promise<void>
   const config = await prisma.telegramConfig.findFirst().catch(() => null);
   if (!config) return;
 
+  const now = new Date().toLocaleString("en-LK", {
+    timeZone: "Asia/Colombo",
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+
   const lines = products.map((p) => {
     const label = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`;
-    const status = p.stockQty === 0 ? "🔴 OUT OF STOCK" : `🟡 ${p.stockQty} left`;
-    return `• ${label}\n  ${status} (threshold: ${p.lowStockThreshold})`;
+    if (p.stockQty === 0) {
+      return `🔴 *OUT OF STOCK*\n📦 ${label}\n⚠️ Reorder immediately`;
+    }
+    const bar = "█".repeat(Math.min(p.stockQty, 5)) + "░".repeat(Math.max(0, 5 - p.stockQty));
+    return `🟡 *${p.stockQty} unit${p.stockQty > 1 ? "s" : ""} left* \`[${bar}]\`\n📦 ${label}\n⚠️ Threshold: ${p.lowStockThreshold}`;
   });
 
   const text =
-    `⚠️ *Low Stock Alert*\n\n` +
+    `🚨 *LOW STOCK ALERT* — HM Stocks\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
     lines.join("\n\n") +
-    `\n\n_${new Date().toLocaleString("en-LK", { timeZone: "Asia/Colombo" })}_`;
+    `\n\n━━━━━━━━━━━━━━━━━━━━\n🕐 _${now}_`;
 
   await sendTelegramMessage(config.botToken, config.chatId, text).catch(() => {});
 }
