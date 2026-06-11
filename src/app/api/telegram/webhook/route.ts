@@ -144,15 +144,11 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
   });
 
   const canViewFinancials = matchedUser.role === "OWNER" || matchedUser.role === "ADMIN";
-  const commands = canViewFinancials
-    ? "• *today / week / month* — sales summary\n• *stock* — overview\n• *stock samsung* — search\n• *low* — low stock\n• *logout* — sign out"
-    : "• *stock* — stock overview\n• *stock samsung* — search\n• *low* — low stock items\n• *logout* — sign out";
 
   return (
-    `✅ *Welcome, ${matchedUser.name}!*\n` +
-    `Role: ${matchedUser.role}\n` +
+    `✅ *Welcome, ${matchedUser.name}!* _(${matchedUser.role})_\n` +
     `Session active for 24 hours.\n\n` +
-    `Available commands:\n${commands}`
+    `Send *help* to see available commands.`
   );
 }
 
@@ -167,7 +163,7 @@ async function deleteTelegramMessage(token: string, chatId: string, messageId: n
 async function handleBotMessage(text: string, canViewFinancials: boolean): Promise<string | null> {
   const t = text.toLowerCase();
 
-  if (["/help", "help", "hi", "hello", "hey"].includes(t)) {
+  if (["/start", "/help", "help", "hi", "hello", "hey"].includes(t)) {
     return buildHelpMessage(canViewFinancials);
   }
 
@@ -201,20 +197,25 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
 }
 
 function buildHelpMessage(canViewFinancials: boolean): string {
+  const sales = canViewFinancials
+    ? `*Sales Summary*\n` +
+      `• today · t · /today — _Today's revenue, profit & sale count_\n` +
+      `• week · w · /week — _This week's totals_\n` +
+      `• month · m · /month — _This month's totals_\n\n`
+    : "";
+
   return (
-    "🏪 *HM Stocks Bot*\n\n" +
-    (canViewFinancials
-      ? "*Sales Summary*\n• today _(or /today, t)_\n• week _(or /week, w)_\n• month _(or /month, m)_\n\n"
-      : "") +
-    "*Stock*\n" +
-    "• stock _(overview)_\n" +
-    "• stock samsung _(search)_\n" +
-    "• s iphone 14 _(short form)_\n\n" +
-    "*Alerts*\n" +
-    "• low _(or /lowstock)_\n\n" +
-    "*Account*\n" +
-    "• logout\n\n" +
-    "_Any unrecognized text is treated as a stock search._"
+    `🏪 *HM Stocks Bot*\n\n` +
+    sales +
+    `*Stock*\n` +
+    `• stock · s — _Overall stock count and health_\n` +
+    `• stock samsung · s samsung — _Search by brand, model, or part name_\n` +
+    `• _(any text)_ — _Treated as a stock search_\n\n` +
+    `*Alerts*\n` +
+    `• low · /lowstock — _All items at or below their alert threshold_\n\n` +
+    `*General*\n` +
+    `• help · /help · /start — _Show this command list_\n` +
+    `• logout — _Sign out_`
   );
 }
 
