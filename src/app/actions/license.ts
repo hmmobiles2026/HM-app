@@ -26,10 +26,13 @@ export async function activateLicense(
     license = await prisma.appLicense.create({ data: {} });
   }
 
-  await prisma.appLicense.update({
-    where: { id: license.id },
-    data: { licensedUntil: result.expiresAt, forceDeactivated: false },
-  });
+  await prisma.$transaction([
+    prisma.appLicense.update({
+      where: { id: license.id },
+      data: { licensedUntil: result.expiresAt, forceDeactivated: false },
+    }),
+    prisma.telegramConfig.updateMany({ data: { isActive: true } }),
+  ]);
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");
@@ -68,10 +71,13 @@ export async function startFreeTrial(): Promise<LicenseActionState> {
     license = await prisma.appLicense.create({ data: {} });
   }
 
-  await prisma.appLicense.update({
-    where: { id: license.id },
-    data: { trialStartedAt: new Date(), forceDeactivated: false, licensedUntil: null },
-  });
+  await prisma.$transaction([
+    prisma.appLicense.update({
+      where: { id: license.id },
+      data: { trialStartedAt: new Date(), forceDeactivated: false, licensedUntil: null },
+    }),
+    prisma.telegramConfig.updateMany({ data: { isActive: true } }),
+  ]);
 
   const config = await prisma.telegramConfig.findFirst();
   if (config) {
@@ -95,15 +101,21 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
   const license = await prisma.appLicense.findFirst();
   if (!license) return { error: "No license record found." };
 
+  const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
+
+  // Atomically: mark deactivated, delete all sessions, disable telegram config
   await prisma.$transaction([
     prisma.appLicense.update({
       where: { id: license.id },
       data: { forceDeactivated: true },
     }),
     prisma.telegramSession.deleteMany({}),
+    ...(config
+      ? [prisma.telegramConfig.update({ where: { id: config.id }, data: { isActive: false } })]
+      : []),
   ]);
 
-  const config = await prisma.telegramConfig.findFirst();
+  // Send final payment reminder (outgoing sendMessage is unaffected by webhook state)
   if (config) {
     await sendTelegramMessage(
       config.botToken,
