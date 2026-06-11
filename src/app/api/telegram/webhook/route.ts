@@ -5,10 +5,6 @@ import { sendTelegramMessage } from "@/lib/telegram";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
-const DEACTIVATED_MSG =
-  `🚫 *HM Stocks — Service Inactive*\n\n` +
-  `Telegram access has been disabled.\n` +
-  `Contact HM Stocks support to reactivate your license.`;
 
 export async function POST(req: NextRequest) {
   const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
@@ -48,13 +44,11 @@ export async function POST(req: NextRequest) {
         ? licenseRow.licensedUntil
         : trialEnd;
     if (now >= expiresAt) {
-      await sendTelegramMessage(config.botToken, chatId, DEACTIVATED_MSG);
       return new Response("OK", { status: 200 });
     }
   }
 
   if (blocked) {
-    await sendTelegramMessage(config.botToken, chatId, DEACTIVATED_MSG);
     return new Response("OK", { status: 200 });
   }
 
@@ -142,8 +136,6 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
       expiresAt: new Date(now.getTime() + SESSION_TTL_MS),
     },
   });
-
-  const canViewFinancials = matchedUser.role === "OWNER" || matchedUser.role === "ADMIN";
 
   return (
     `✅ *Welcome, ${matchedUser.name}!* _(${matchedUser.role})_\n` +
