@@ -1,12 +1,14 @@
 ﻿import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Receipt } from "lucide-react";
+import { ReturnButton } from "./return-button";
 
 type SaleItem = {
   id: string;
   quantity: number;
   unitPrice: unknown;
   unitCost: unknown;
+  returnedQty: number;
   product: {
     name: string;
     imageUrl: string | null;
@@ -116,10 +118,17 @@ export function SalesHistory({ sales, showFinancials }: Props) {
                     </div>
                   </div>
 
-                  {/* Price */}
-                  <p className="text-slate-200 text-sm font-medium shrink-0">
-                    {lkr(Number(item.unitPrice) * item.quantity)}
-                  </p>
+                  {/* Price + return */}
+                  <div className="text-right shrink-0">
+                    <p className="text-slate-200 text-sm font-medium">
+                      {lkr(Number(item.unitPrice) * item.quantity)}
+                    </p>
+                    <ReturnButton
+                      saleItemId={item.id}
+                      maxQty={item.quantity - item.returnedQty}
+                      productName={item.product.name}
+                    />
+                  </div>
                 </div>
               );
             })}

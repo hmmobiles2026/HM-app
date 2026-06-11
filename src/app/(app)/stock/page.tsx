@@ -4,7 +4,7 @@ import { StockList } from "./stock-list";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
 async function getStock(searchParams: {
   q?: string;
@@ -81,10 +81,16 @@ export default async function StockPage({
           </p>
         </div>
         {canEdit && (
-          <Link href="/stock/new" className={cn(buttonVariants(), "bg-blue-600 hover:bg-blue-500")}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Product
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/stock/import" className={cn(buttonVariants({ variant: "outline" }), "border-slate-700 text-slate-300 hover:text-white")}>
+              <Upload className="h-4 w-4 mr-1.5" />
+              Import CSV
+            </Link>
+            <Link href="/stock/new" className={cn(buttonVariants(), "bg-blue-600 hover:bg-blue-500")}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Product
+            </Link>
+          </div>
         )}
       </div>
       <StockList

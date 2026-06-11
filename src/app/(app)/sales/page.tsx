@@ -29,6 +29,7 @@ export default async function SalesPage() {
                 model: { select: { name: true } },
               },
             },
+            returns: { select: { quantity: true } },
           },
         },
       },
@@ -52,6 +53,7 @@ export default async function SalesPage() {
       ...item,
       unitPrice: item.unitPrice.toNumber(),
       unitCost: item.unitCost.toNumber(),
+      returnedQty: item.returns.reduce((sum, r) => sum + r.quantity, 0),
     })),
   }));
 

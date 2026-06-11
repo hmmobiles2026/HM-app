@@ -1,10 +1,10 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownCircle, ArrowUpCircle, RefreshCw } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, RefreshCw, Undo2 } from "lucide-react";
 
 type Movement = {
   id: string;
-  type: "IN" | "OUT" | "ADJUSTMENT";
+  type: "IN" | "OUT" | "ADJUSTMENT" | "RETURN";
   quantity: number;
   note: string | null;
   createdAt: Date;
@@ -17,18 +17,28 @@ const typeConfig = {
     color: "text-emerald-400",
     badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     label: "Stock In",
+    sign: "+",
   },
   OUT: {
     icon: ArrowUpCircle,
     color: "text-red-400",
     badge: "bg-red-500/20 text-red-300 border-red-500/30",
     label: "Stock Out",
+    sign: "−",
   },
   ADJUSTMENT: {
     icon: RefreshCw,
     color: "text-amber-400",
     badge: "bg-amber-500/20 text-amber-300 border-amber-500/30",
     label: "Adjustment",
+    sign: "~",
+  },
+  RETURN: {
+    icon: Undo2,
+    color: "text-blue-400",
+    badge: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    label: "Return",
+    sign: "+",
   },
 };
 
@@ -62,8 +72,7 @@ export function StockHistory({
                   {cfg.label}
                 </Badge>
                 <span className="text-white font-semibold text-sm">
-                  {m.type === "IN" ? "+" : m.type === "OUT" ? "−" : "~"}
-                  {m.quantity}
+                  {cfg.sign}{m.quantity}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">

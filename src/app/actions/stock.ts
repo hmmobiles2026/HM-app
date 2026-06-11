@@ -153,10 +153,27 @@ export async function updateProduct(
     imagePublicId = uploaded.publicId;
   }
 
-  await prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id },
     data: { ...rest, modelId: modelId || null, tags: tagList, imageUrl, imagePublicId },
   });
+
+  // Record price history if cost or selling price changed
+  const oldCost = Number(existing.costPrice);
+  const newCost = Number(updated.costPrice);
+  const oldSell = Number(existing.sellingPrice);
+  const newSell = Number(updated.sellingPrice);
+  if (oldCost !== newCost || oldSell !== newSell) {
+    await prisma.priceHistory.create({
+      data: {
+        productId: id,
+        oldCostPrice: oldCost,
+        newCostPrice: newCost,
+        oldSellPrice: oldSell,
+        newSellPrice: newSell,
+      },
+    });
+  }
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${id}`);

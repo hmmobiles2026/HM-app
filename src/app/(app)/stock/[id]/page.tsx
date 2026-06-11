@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { ProductForm } from "../product-form";
 import { StockHistory } from "./stock-history";
+import { PriceHistory } from "./price-history";
 import { StockInForm } from "./stock-in-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -17,7 +18,7 @@ export default async function ProductDetailPage({
   const { tab } = await searchParams;
   const session = await verifySession();
 
-  const [product, brands, categories, movements] = await Promise.all([
+  const [product, brands, categories, movements, priceEntries] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { brand: true, model: true, category: true },
@@ -31,6 +32,11 @@ export default async function ProductDetailPage({
       where: { productId: id },
       include: { createdBy: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
+    prisma.priceHistory.findMany({
+      where: { productId: id },
+      orderBy: { changedAt: "desc" },
       take: 20,
     }),
   ]);
@@ -42,6 +48,14 @@ export default async function ProductDetailPage({
     costPrice: product.costPrice.toNumber(),
     sellingPrice: product.sellingPrice.toNumber(),
   };
+
+  const serializedPriceEntries = priceEntries.map((e) => ({
+    ...e,
+    oldCostPrice: e.oldCostPrice.toNumber(),
+    newCostPrice: e.newCostPrice.toNumber(),
+    oldSellPrice: e.oldSellPrice.toNumber(),
+    newSellPrice: e.newSellPrice.toNumber(),
+  }));
 
   const canEdit = session.role === "ADMIN" || session.role === "OWNER";
   const showCosts = session.role !== "SELLER";
@@ -82,6 +96,11 @@ export default async function ProductDetailPage({
           <TabsTrigger value="history" className="text-white data-active:bg-blue-600 data-active:text-white">
             History
           </TabsTrigger>
+          {showCosts && (
+            <TabsTrigger value="prices" className="text-white data-active:bg-blue-600 data-active:text-white">
+              Prices
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {canEdit && (
@@ -102,6 +121,15 @@ export default async function ProductDetailPage({
         <TabsContent value="history">
           <StockHistory movements={movements} showCosts={showCosts} />
         </TabsContent>
+        {showCosts && (
+          <TabsContent value="prices">
+            <PriceHistory
+              entries={serializedPriceEntries}
+              currentCost={serializedProduct.costPrice}
+              currentSell={serializedProduct.sellingPrice}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

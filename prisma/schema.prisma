@@ -104,6 +104,20 @@ model Product {
 
   stockMovements StockMovement[]
   saleItems      SaleItem[]
+  priceHistory   PriceHistory[]
+}
+
+model PriceHistory {
+  id           String   @id @default(cuid())
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId    String
+  oldCostPrice Decimal  @db.Decimal(10, 2)
+  newCostPrice Decimal  @db.Decimal(10, 2)
+  oldSellPrice Decimal  @db.Decimal(10, 2)
+  newSellPrice Decimal  @db.Decimal(10, 2)
+  changedAt    DateTime @default(now())
+
+  @@index([productId])
 }
 
 // ─── Stock Movements ─────────────────────────────────────────────────────────
@@ -112,6 +126,7 @@ enum MovementType {
   IN
   OUT
   ADJUSTMENT
+  RETURN
 }
 
 model StockMovement {
@@ -151,7 +166,21 @@ model SaleItem {
   unitPrice Decimal @db.Decimal(10, 2)
   unitCost  Decimal @db.Decimal(10, 2)
 
+  returns   SaleReturn[]
+
   @@index([saleId])
+}
+
+model SaleReturn {
+  id           String   @id @default(cuid())
+  saleItem     SaleItem @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  saleItemId   String
+  quantity     Int
+  reason       String?
+  refundAmount Decimal  @db.Decimal(10, 2)
+  createdAt    DateTime @default(now())
+
+  @@index([saleItemId])
 }
 
 // ─── WhatsApp ─────────────────────────────────────────────────────────────────
