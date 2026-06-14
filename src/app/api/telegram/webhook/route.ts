@@ -132,10 +132,13 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
     },
   });
 
+  const roleLabel: Record<string, string> = { OWNER: "Owner", ADMIN: "Admin", SELLER: "Seller" };
   return (
-    `✅ *Welcome, ${matchedUser.name}!* _(${matchedUser.role})_\n` +
-    `Session active for 24 hours.\n\n` +
-    `Send *help* to see available commands.`
+    `✅ *Welcome, ${matchedUser.name}!*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `👤 Role: ${roleLabel[matchedUser.role] ?? matchedUser.role}\n` +
+    `🔒 Session valid for 24 hours\n\n` +
+    `Type *help* to see available commands.`
   );
 }
 
@@ -164,96 +167,62 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
     return "🚫 Sales summaries are only available to Owner / Admin.";
   }
 
-  if (["/lowstock", "lowstock", "low", "l"].includes(t)) return buildLowStockMessage();
+  if (["/lowstock", "lowstock", "low", "l"].includes(t)) return buildLowStockMessage(canViewFinancials);
 
+  // price/p is now just an alias for stock search (prices always shown)
   if (t.startsWith("price ") || t.startsWith("/price ") || t.startsWith("p "))
-    return buildPriceMessage(text.replace(/^\/?(price|p)\s+/i, "").trim(), canViewFinancials);
+    return buildStockMessage(text.replace(/^\/?(price|p)\s+/i, "").trim(), canViewFinancials);
 
-  if (t === "/stock" || t === "stock" || t === "s") return buildStockMessage("");
-  if (t.startsWith("/stock ")) return buildStockMessage(text.slice(7).trim());
-  if (t.startsWith("stock ")) return buildStockMessage(text.slice(6).trim());
-  if (t.startsWith("s ")) return buildStockMessage(text.slice(2).trim());
+  if (t === "/stock" || t === "stock" || t === "s") return buildStockMessage("", canViewFinancials);
+  if (t.startsWith("/stock ")) return buildStockMessage(text.slice(7).trim(), canViewFinancials);
+  if (t.startsWith("stock ")) return buildStockMessage(text.slice(6).trim(), canViewFinancials);
+  if (t.startsWith("s ")) return buildStockMessage(text.slice(2).trim(), canViewFinancials);
 
-  if (t.length >= 2) return buildStockMessage(text.trim());
+  if (t.length >= 2) return buildStockMessage(text.trim(), canViewFinancials);
 
   return (
-    "❓ I didn't get that.\n\n" +
-    "Quick commands:\n" +
-    "• *stock iphone* — search stock\n" +
-    "• *low* — low stock items\n" +
-    (canViewFinancials ? "• *today* — today's sales\n" : "") +
-    "• *help* — all commands\n" +
-    "• *logout* — sign out"
+    `❓ *Not sure what you meant.*\n\n` +
+    `Quick commands:\n` +
+    `• *a14* — search stock + prices\n` +
+    `• *low* — low stock items\n` +
+    (canViewFinancials ? `• *today* — today's sales\n• *report* — full daily report\n` : ``) +
+    `• *help* — all commands\n` +
+    `• *logout* — sign out`
   );
 }
 
 function buildHelpMessage(canViewFinancials: boolean): string {
-  const sales = canViewFinancials
-    ? `*Sales Summary*\n` +
-      `• report · r · /report — _Today's full detailed report_\n` +
-      `• today · t · /today — _Today's quick totals_\n` +
-      `• week · w · /week — _This week's totals_\n` +
-      `• month · m · /month — _This month's totals_\n\n`
+  const salesSection = canViewFinancials
+    ? `📊 *Sales*\n` +
+      `• report · r — _Full today's report (sales + low stock)_\n` +
+      `• today · t — _Quick today's totals_\n` +
+      `• week · w — _This week's totals_\n` +
+      `• month · m — _This month's totals_\n\n`
     : "";
 
+  const priceNote = canViewFinancials
+    ? `_Search shows cost, selling price & margin_\n\n`
+    : `_Search shows selling price & stock count_\n\n`;
+
   return (
-    `🏪 *HM Stocks Bot*\n\n` +
-    sales +
-    `*Stock & Prices*\n` +
-    `• stock · s — _Overall stock count and health_\n` +
-    `• stock samsung · s samsung — _Search stock by brand, model, or part_\n` +
-    `• price samsung a54 display — _Selling price + stock count_\n` +
-    (canViewFinancials ? `• _(price shows cost & margin for you)_\n` : "") +
-    `• _(any text)_ — _Treated as a stock search_\n\n` +
-    `*Alerts*\n` +
-    `• low · /lowstock — _All items at or below their alert threshold_\n\n` +
-    `*General*\n` +
-    `• help · /help · /start — _Show this command list_\n` +
+    `🏪 *HM Stocks Bot*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    salesSection +
+    `📦 *Stock & Prices*\n` +
+    `• a14 samsung — _Search by brand, model, or part name_\n` +
+    `• stock · s — _Overall inventory snapshot_\n` +
+    priceNote +
+    `⚠️ *Alerts*\n` +
+    `• low · l — _Items at or below their reorder level_\n\n` +
+    `⚙️ *General*\n` +
+    `• help — _This command list_\n` +
     `• logout — _Sign out_`
   );
 }
 
-async function buildPriceMessage(query: string, canViewCosts: boolean): Promise<string> {
-  if (!query) {
-    return "❓ Specify a product to look up.\nExample: *price samsung a54 display*";
-  }
-
-  const products = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { brand: { name: { contains: query, mode: "insensitive" } } },
-        { model: { name: { contains: query, mode: "insensitive" } } },
-        { name: { contains: query, mode: "insensitive" } },
-        { tags: { has: query.toLowerCase() } },
-      ],
-    },
-    include: { brand: true, model: true },
-    orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
-    take: 8,
-  });
-
-  if (products.length === 0) {
-    return `❌ No products found for "*${query}*"`;
-  }
-
+async function buildStockMessage(query: string, canViewCosts: boolean): Promise<string> {
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
-  const lines = products.map((p) => {
-    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`;
-    const sell = Number(p.sellingPrice);
-    const cost = Number(p.costPrice);
-    const margin = ((sell - cost) / sell * 100).toFixed(1);
-    const stockIcon = p.stockQty === 0 ? "🔴" : p.stockQty <= p.lowStockThreshold ? "🟡" : "🟢";
-    const priceLine = canViewCosts
-      ? `   💵 Price: *${fmt(sell)}*  |  Cost: ${fmt(cost)}  |  Margin: ${margin}%`
-      : `   💵 Price: *${fmt(sell)}*`;
-    return `${stockIcon} *${name}*\n   📦 Stock: ${p.stockQty} pcs\n${priceLine}`;
-  });
 
-  return `💲 *"${query}"*\n\n${lines.join("\n\n")}${products.length === 8 ? "\n\n_Showing top 8_" : ""}`;
-}
-
-async function buildStockMessage(query: string): Promise<string> {
   if (!query) {
     const [total, value, lowCount] = await Promise.all([
       prisma.product.count({ where: { isActive: true } }),
@@ -265,10 +234,11 @@ async function buildStockMessage(query: string): Promise<string> {
     ]);
     const low = Number(lowCount[0]?.count ?? 0);
     return (
-      `📦 *Stock Overview*\n\n` +
-      `SKUs: ${total}\n` +
-      `Total items: ${value._sum.stockQty ?? 0}\n` +
-      (low > 0 ? `⚠️ Low stock: ${low} items` : `✅ All levels healthy`)
+      `📦 *Stock Overview*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📋 SKUs: *${total}*\n` +
+      `🔢 Total items: *${value._sum.stockQty ?? 0}*\n\n` +
+      (low > 0 ? `⚠️ Low stock: *${low}* item${low > 1 ? "s" : ""}` : `✅ All stock levels healthy`)
     );
   }
 
@@ -288,16 +258,31 @@ async function buildStockMessage(query: string): Promise<string> {
   });
 
   if (products.length === 0) {
-    return `❌ Nothing found for "*${query}*"\n\nTry: stock samsung · stock display · stock battery`;
+    return `❌ *Nothing found for "${query}"*\n\nTry searching by brand, model, or part name.`;
   }
 
   const lines = products.map((p) => {
     const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}`;
-    const isLow = p.stockQty <= p.lowStockThreshold;
-    return `${isLow ? "⚠️" : "•"} ${name}: *${p.stockQty}* pcs`;
+    const sell = Number(p.sellingPrice);
+    const cost = Number(p.costPrice);
+    const margin = sell > 0 ? ((sell - cost) / sell * 100).toFixed(0) : "0";
+    const icon = p.stockQty === 0 ? "🔴" : p.stockQty <= p.lowStockThreshold ? "🟡" : "🟢";
+
+    if (canViewCosts) {
+      return (
+        `${icon} *${name}*\n` +
+        `   📦 ${p.stockQty} pcs  |  Cost: ${fmt(cost)}  →  Price: *${fmt(sell)}*  _(${margin}%)_`
+      );
+    }
+    return `${icon} *${name}*\n   📦 ${p.stockQty} pcs  |  Price: *${fmt(sell)}*`;
   });
 
-  return `📦 *"${query}"*\n\n${lines.join("\n")}${products.length === 10 ? "\n\n_Showing top 10_" : ""}`;
+  return (
+    `🔍 *"${query}"*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    lines.join("\n\n") +
+    (products.length === 10 ? "\n\n_Showing top 10 results_" : "")
+  );
 }
 
 async function buildSummaryMessage(text: string): Promise<string> {
@@ -334,25 +319,36 @@ async function buildSummaryMessage(text: string): Promise<string> {
   const revenue = Number(sales._sum.totalRevenue ?? 0);
   const profit = Number(sales._sum.profit ?? 0);
   const cost = Number(sales._sum.totalCost ?? 0);
-  const margin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : "0";
+  const margin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : "0.0";
   const lowCount = Number(lowStock[0]?.count ?? 0);
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
 
+  if (sales._count === 0) {
+    return (
+      `📊 *${label} Summary*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `_No sales recorded._\n\n` +
+      (lowCount > 0 ? `⚠️ ${lowCount} item${lowCount > 1 ? "s" : ""} low on stock` : `✅ Stock levels OK`)
+    );
+  }
+
   return (
-    `📊 *${label} Summary*\n\n` +
-    `💰 Revenue: ${fmt(revenue)}\n` +
-    `💸 Cost:    ${fmt(cost)}\n` +
-    `📈 Profit:  ${fmt(profit)} _(${margin}%)_\n` +
-    `🛒 Sales:   ${sales._count}\n\n` +
+    `📊 *${label} Summary*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `💵 Revenue:  *${fmt(revenue)}*\n` +
+    `📦 Cost:     ${fmt(cost)}\n` +
+    `✅ Profit:   *${fmt(profit)}*  _(${margin}%)_\n` +
+    `🛒 Sales:    ${sales._count} transaction${sales._count > 1 ? "s" : ""}\n\n` +
     (lowCount > 0 ? `⚠️ ${lowCount} item${lowCount > 1 ? "s" : ""} low on stock` : `✅ Stock levels OK`)
   );
 }
 
-async function buildLowStockMessage(): Promise<string> {
+async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
   const products = await prisma.$queryRaw<
-    { name: string; stockQty: number; lowStockThreshold: number; brandName: string; modelName: string | null }[]
+    { name: string; stockQty: number; brandName: string; modelName: string | null; sellingPrice: number; costPrice: number }[]
   >`
-    SELECT p.name, p."stockQty", p."lowStockThreshold", b.name as "brandName", pm.name as "modelName"
+    SELECT p.name, p."stockQty", b.name as "brandName", pm.name as "modelName",
+           p."sellingPrice"::float as "sellingPrice", p."costPrice"::float as "costPrice"
     FROM "Product" p
     JOIN "Brand" b ON b.id = p."brandId"
     LEFT JOIN "PhoneModel" pm ON pm.id = p."modelId"
@@ -361,13 +357,23 @@ async function buildLowStockMessage(): Promise<string> {
     LIMIT 15
   `;
 
-  if (products.length === 0) return "✅ *All stock levels are healthy!*";
+  if (products.length === 0) {
+    return `✅ *All stock levels are healthy!*`;
+  }
 
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
   const lines = products.map((p) => {
     const name = `${p.brandName}${p.modelName ? ` ${p.modelName}` : ""} ${p.name}`;
-    const urgent = p.stockQty === 0 ? " 🔴 OUT" : "";
-    return `• ${name}: *${p.stockQty}* left${urgent}`;
+    const icon = p.stockQty === 0 ? "🔴" : "🟡";
+    const priceInfo = canViewCosts
+      ? `Cost: ${fmt(p.costPrice)}  →  Price: *${fmt(p.sellingPrice)}*`
+      : `Price: *${fmt(p.sellingPrice)}*`;
+    return `${icon} *${name}*\n   📦 ${p.stockQty} left  |  ${priceInfo}`;
   });
 
-  return `⚠️ *Low Stock — ${products.length} item${products.length > 1 ? "s" : ""}*\n\n${lines.join("\n")}`;
+  return (
+    `⚠️ *Low Stock — ${products.length} item${products.length > 1 ? "s" : ""}*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    lines.join("\n\n")
+  );
 }
