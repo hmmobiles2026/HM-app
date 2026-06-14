@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { buildDailyReport } from "@/lib/daily-report";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -96,12 +97,6 @@ async function routeMessage(
     return { reply: "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:", deleteInput: false };
   }
 
-  // Refresh session on every message
-  await prisma.telegramSession.update({
-    where: { chatId },
-    data: { expiresAt: new Date(now.getTime() + SESSION_TTL_MS) },
-  });
-
   const canViewFinancials = session.role === "OWNER" || session.role === "ADMIN";
   const reply = await handleBotMessage(text, canViewFinancials);
   return { reply, deleteInput: false };
@@ -164,7 +159,8 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
     if (["week", "/week", "w"].includes(t)) return buildSummaryMessage("week");
     if (["month", "/month", "m"].includes(t)) return buildSummaryMessage("month");
     if (t.startsWith("/summary") || t.startsWith("summary")) return buildSummaryMessage(t);
-  } else if (["today", "/today", "week", "/week", "month", "/month", "t", "w", "m"].includes(t)) {
+    if (["report", "/report", "r"].includes(t)) return buildDailyReport();
+  } else if (["today", "/today", "week", "/week", "month", "/month", "t", "w", "m", "report", "/report", "r"].includes(t)) {
     return "🚫 Sales summaries are only available to Owner / Admin.";
   }
 
@@ -191,7 +187,8 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
 function buildHelpMessage(canViewFinancials: boolean): string {
   const sales = canViewFinancials
     ? `*Sales Summary*\n` +
-      `• today · t · /today — _Today's revenue, profit & sale count_\n` +
+      `• report · r · /report — _Today's full detailed report_\n` +
+      `• today · t · /today — _Today's quick totals_\n` +
       `• week · w · /week — _This week's totals_\n` +
       `• month · m · /month — _This month's totals_\n\n`
     : "";

@@ -8,9 +8,11 @@ import {
   ShoppingCart,
   BarChart3,
   Settings,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/generated/prisma/client";
+import { logout } from "@/app/actions/auth";
 
 type NavItem = {
   label: string;
@@ -78,6 +80,15 @@ export function MobileNav({ role }: { role: Role }) {
             </Link>
           );
         })}
+        <form action={logout}>
+          <button
+            type="submit"
+            className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-colors min-w-0 text-slate-300 hover:text-red-400"
+          >
+            <LogOut className="h-5 w-5 flex-shrink-0" />
+            <span className="text-[10px] font-medium truncate">Sign out</span>
+          </button>
+        </form>
       </div>
     </nav>
   );

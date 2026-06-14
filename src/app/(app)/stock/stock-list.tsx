@@ -92,7 +92,11 @@ export function StockList({
             className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
           />
         </div>
-        <Select defaultValue="all" onValueChange={(v) => onFilterChange("brand", v as string)}>
+        <Select
+          defaultValue="all"
+          onValueChange={(v) => onFilterChange("brand", v as string)}
+          items={{ all: "All Brands", ...Object.fromEntries(brands.map((b) => [b.id, b.name])) }}
+        >
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
             <SelectValue />
           </SelectTrigger>
@@ -105,7 +109,11 @@ export function StockList({
             ))}
           </SelectContent>
         </Select>
-        <Select defaultValue="all" onValueChange={(v) => onFilterChange("category", v as string)}>
+        <Select
+          defaultValue="all"
+          onValueChange={(v) => onFilterChange("category", v as string)}
+          items={{ all: "All Categories", ...Object.fromEntries(categories.map((c) => [c.id, c.name])) }}
+        >
           <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
             <SelectValue />
           </SelectTrigger>
