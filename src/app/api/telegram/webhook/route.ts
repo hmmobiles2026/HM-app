@@ -166,6 +166,9 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
 
   if (["/lowstock", "lowstock", "low", "l"].includes(t)) return buildLowStockMessage();
 
+  if (t.startsWith("price ") || t.startsWith("/price ") || t.startsWith("p "))
+    return buildPriceMessage(text.replace(/^\/?(price|p)\s+/i, "").trim(), canViewFinancials);
+
   if (t === "/stock" || t === "stock" || t === "s") return buildStockMessage("");
   if (t.startsWith("/stock ")) return buildStockMessage(text.slice(7).trim());
   if (t.startsWith("stock ")) return buildStockMessage(text.slice(6).trim());
@@ -196,9 +199,11 @@ function buildHelpMessage(canViewFinancials: boolean): string {
   return (
     `🏪 *HM Stocks Bot*\n\n` +
     sales +
-    `*Stock*\n` +
+    `*Stock & Prices*\n` +
     `• stock · s — _Overall stock count and health_\n` +
-    `• stock samsung · s samsung — _Search by brand, model, or part name_\n` +
+    `• stock samsung · s samsung — _Search stock by brand, model, or part_\n` +
+    `• price samsung a54 display — _Selling price + stock count_\n` +
+    (canViewFinancials ? `• _(price shows cost & margin for you)_\n` : "") +
     `• _(any text)_ — _Treated as a stock search_\n\n` +
     `*Alerts*\n` +
     `• low · /lowstock — _All items at or below their alert threshold_\n\n` +
@@ -206,6 +211,46 @@ function buildHelpMessage(canViewFinancials: boolean): string {
     `• help · /help · /start — _Show this command list_\n` +
     `• logout — _Sign out_`
   );
+}
+
+async function buildPriceMessage(query: string, canViewCosts: boolean): Promise<string> {
+  if (!query) {
+    return "❓ Specify a product to look up.\nExample: *price samsung a54 display*";
+  }
+
+  const products = await prisma.product.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { brand: { name: { contains: query, mode: "insensitive" } } },
+        { model: { name: { contains: query, mode: "insensitive" } } },
+        { name: { contains: query, mode: "insensitive" } },
+        { tags: { has: query.toLowerCase() } },
+      ],
+    },
+    include: { brand: true, model: true },
+    orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
+    take: 8,
+  });
+
+  if (products.length === 0) {
+    return `❌ No products found for "*${query}*"`;
+  }
+
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
+  const lines = products.map((p) => {
+    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`;
+    const sell = Number(p.sellingPrice);
+    const cost = Number(p.costPrice);
+    const margin = ((sell - cost) / sell * 100).toFixed(1);
+    const stockIcon = p.stockQty === 0 ? "🔴" : p.stockQty <= p.lowStockThreshold ? "🟡" : "🟢";
+    const priceLine = canViewCosts
+      ? `   💵 Price: *${fmt(sell)}*  |  Cost: ${fmt(cost)}  |  Margin: ${margin}%`
+      : `   💵 Price: *${fmt(sell)}*`;
+    return `${stockIcon} *${name}*\n   📦 Stock: ${p.stockQty} pcs\n${priceLine}`;
+  });
+
+  return `💲 *"${query}"*\n\n${lines.join("\n\n")}${products.length === 8 ? "\n\n_Showing top 8_" : ""}`;
 }
 
 async function buildStockMessage(query: string): Promise<string> {

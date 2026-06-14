@@ -42,6 +42,63 @@ export async function notifyLowStock(products: LowStockProduct[]): Promise<void>
   await sendTelegramMessage(config.botToken, config.chatId, text).catch(() => {});
 }
 
+type StockInItem = {
+  productName: string;
+  brandName: string;
+  modelName: string | null;
+  quantity: number;
+  costPrice: number;
+};
+
+export async function notifyStockIn(
+  items: StockInItem[],
+  addedBy: string,
+  note?: string | null
+): Promise<void> {
+  const [license, config] = await Promise.all([
+    getLicenseStatus(),
+    prisma.telegramConfig.findFirst().catch(() => null),
+  ]);
+  if (!license.active || !config) return;
+
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
+  const time = new Date().toLocaleString("en-LK", {
+    timeZone: "Asia/Colombo",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+
+  let text: string;
+  if (items.length === 1) {
+    const it = items[0];
+    const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}`;
+    text =
+      `📦 *Stock In — HM Stocks*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `🧑 ${addedBy}\n` +
+      `📱 ${label}\n` +
+      `🔢 Qty: *${it.quantity}* units\n` +
+      `💵 Cost: *${fmt(it.costPrice)}* each\n` +
+      (note ? `📝 ${note}\n` : "") +
+      `\n🕐 _${time}_`;
+  } else {
+    const lines = items.map((it) => {
+      const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}`;
+      return `• ${label} × *${it.quantity}* @ ${fmt(it.costPrice)}`;
+    }).join("\n");
+    const totalUnits = items.reduce((s, it) => s + it.quantity, 0);
+    text =
+      `📦 *Bulk Stock In — HM Stocks*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `🧑 ${addedBy}\n` +
+      `🔢 ${totalUnits} units across ${items.length} products\n\n` +
+      lines + "\n" +
+      (note ? `\n📝 ${note}\n` : "") +
+      `\n🕐 _${time}_`;
+  }
+
+  await sendTelegramMessage(config.botToken, config.chatId, text).catch(() => {});
+}
+
 export async function sendTelegramMessage(
   token: string,
   chatId: string,

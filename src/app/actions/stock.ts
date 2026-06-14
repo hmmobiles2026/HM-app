@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/dal";
 import { v2 as cloudinary } from "cloudinary";
+import { notifyStockIn } from "@/lib/telegram";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -198,21 +199,30 @@ export async function addStock(
 
   const { quantity, note } = parsed.data;
 
-  await prisma.$transaction([
-    prisma.stockMovement.create({
-      data: {
-        productId,
-        type: "IN",
-        quantity,
-        note: note || null,
-        userId: session.userId,
-      },
-    }),
-    prisma.product.update({
+  const [, product, user] = await Promise.all([
+    prisma.$transaction([
+      prisma.stockMovement.create({
+        data: { productId, type: "IN", quantity, note: note || null, userId: session.userId },
+      }),
+      prisma.product.update({
+        where: { id: productId },
+        data: { stockQty: { increment: quantity } },
+      }),
+    ]),
+    prisma.product.findUnique({
       where: { id: productId },
-      data: { stockQty: { increment: quantity } },
+      include: { brand: true, model: true },
     }),
+    prisma.user.findUnique({ where: { id: session.userId }, select: { name: true } }),
   ]);
+
+  if (product && user) {
+    notifyStockIn(
+      [{ productName: product.name, brandName: product.brand.name, modelName: product.model?.name ?? null, quantity, costPrice: Number(product.costPrice) }],
+      user.name,
+      note || null
+    ).catch(() => {});
+  }
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${productId}`);
@@ -244,17 +254,37 @@ export async function addStockBulk(
 
   if (items.length === 0) return { error: "Add at least one product." };
 
-  await prisma.$transaction(
-    items.flatMap(({ productId, quantity }) => [
-      prisma.stockMovement.create({
-        data: { productId, type: "IN", quantity, note, userId: session.userId },
+  const productIds = items.map((it) => it.productId);
+
+  const [, products, user] = await Promise.all([
+    prisma.$transaction(
+      items.flatMap(({ productId, quantity }) => [
+        prisma.stockMovement.create({
+          data: { productId, type: "IN", quantity, note, userId: session.userId },
+        }),
+        prisma.product.update({
+          where: { id: productId },
+          data: { stockQty: { increment: quantity } },
+        }),
+      ])
+    ),
+    prisma.product.findMany({
+      where: { id: { in: productIds } },
+      include: { brand: true, model: true },
+    }),
+    prisma.user.findUnique({ where: { id: session.userId }, select: { name: true } }),
+  ]);
+
+  if (user && products.length > 0) {
+    notifyStockIn(
+      items.map(({ productId, quantity }) => {
+        const p = products.find((x) => x.id === productId)!;
+        return { productName: p.name, brandName: p.brand.name, modelName: p.model?.name ?? null, quantity, costPrice: Number(p.costPrice) };
       }),
-      prisma.product.update({
-        where: { id: productId },
-        data: { stockQty: { increment: quantity } },
-      }),
-    ])
-  );
+      user.name,
+      note
+    ).catch(() => {});
+  }
 
   revalidatePath("/stock");
   redirect("/stock");
