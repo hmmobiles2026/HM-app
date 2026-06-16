@@ -94,75 +94,56 @@ They can log in with those credentials immediately.
 
 The Telegram bot sends you automatic alerts and lets you check your business from anywhere on your phone.
 
-### Setting up Telegram
-
-1. Create a Telegram bot using **@BotFather** on Telegram:
-   - Open Telegram, search for `@BotFather`
-   - Send `/newbot`
-   - Follow the steps — give it a name and username
-   - Copy the **Bot Token** it gives you
-
-2. Find your **Chat ID**:
-   - Open your new bot in Telegram and send it any message
-   - Go to **Settings** → **Telegram** in the app
-   - Paste your Bot Token and click **Get Chat ID** — it will detect it automatically
-
-3. Register the webhook:
-   - In **Settings** → **Telegram**, fill in the Bot Token, Chat ID, and a Webhook Secret (any random text like `mysecret123`)
-   - Click **Save**, then click **Register Webhook**
-   - Done — your bot is now connected
+> **Note:** The bot is set up by your HM Stocks support (Heshan Kavinda). You do not need to configure any API settings. Just follow the steps below to log in and start using it.
 
 ### Logging in to the bot
 
-Before you can use the bot, you must authenticate with your app password:
+Your bot has already been set up and connected to your account. To start using it:
 
-1. Open your bot in Telegram
-2. Type `/start`
-3. It will ask for your password — send your **app login password**
-4. You are logged in for **24 hours**. After that, send your password again to continue.
+1. Open **Telegram** on your phone
+2. Search for your bot by name (your support will tell you the bot name)
+3. Type `/start`
+4. It will ask for your password — send your **app login password**
+5. You are logged in for **24 hours**. After that, send your password again to continue.
 
-Your session is personal. Each person who uses the bot logs in separately with their own password.
+Your session is personal. Each staff member who uses the bot logs in separately with their own password.
+
+### What the bot does automatically
+
+You do not need to do anything — these happen on their own:
+
+- **Low stock alert** — sent immediately when any product falls below its stock threshold
+- **Stock-in notification** — sent when a seller adds new stock
+- **Daily summary at 10:00 PM** — today's sales, revenue, profit, and any low stock items
+- **Midnight data backup** — your full stock and sales data is saved automatically every night
 
 ### Bot Commands
 
-Once logged in, you can send any of the following:
+Once logged in, type any of the following:
 
 **Sales Summary** *(Owner only)*
 
 | Command | What it does |
 |---|---|
-| `today` or `t` or `/today` | Today's revenue, profit & sale count |
-| `week` or `w` or `/week` | This week's totals |
-| `month` or `m` or `/month` | This month's totals |
+| `today` or `t` | Today's revenue, profit & sale count |
+| `week` or `w` | This week's totals |
+| `month` or `m` | This month's totals |
+| `report` or `r` | Full detailed daily report (same as 10 PM summary) |
 
 **Stock**
 
 | Command | What it does |
 |---|---|
 | `stock` or `s` | Overall stock count and health |
-| `stock samsung` or `s samsung` | Search by brand, model, or part name |
-| *(any text)* | Treated as a stock search automatically |
-
-**Alerts**
-
-| Command | What it does |
-|---|---|
-| `low` or `/lowstock` | All items at or below their alert threshold |
+| `samsung a54` | Search by brand, model, or part name — shows stock + prices |
+| `low` | All items at or below their alert threshold |
 
 **General**
 
 | Command | What it does |
 |---|---|
-| `help` or `/help` or `/start` | Show the command list |
+| `help` | Show all commands |
 | `logout` | Sign out of the bot |
-
-### Automatic Alerts
-
-The bot automatically sends you:
-
-- **Low stock alerts** whenever a product falls below its threshold after a sale
-- **Daily summary** every morning with yesterday's totals, profit, and any low stock items
-- **License warnings** in the daily summary when your subscription is close to expiring
 
 ---
 

@@ -27,7 +27,7 @@ const GUIDE_SECTIONS = [
   },
   {
     title: "Telegram Bot",
-    body: "Create a bot with @BotFather, copy the token, go to Settings → Telegram. Paste the token, save, register webhook. Open the bot and send /start, then your password to log in. Session lasts 24 hours.",
+    body: "Your bot is already set up by your support contact. Open Telegram, find your bot, type /start, then send your app login password. You are logged in for 24 hours. The bot automatically sends low-stock alerts, stock-in notifications, a daily sales summary at 10 PM, and a midnight data backup. You can also type commands: today, week, month, report, low, or search any product name.",
   },
   {
     title: "Password Change",
