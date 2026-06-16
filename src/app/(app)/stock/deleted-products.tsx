@@ -18,18 +18,19 @@ import type { Brand, Category, PhoneModel } from "@/generated/prisma/client";
 type DeletedProduct = {
   id: string;
   name: string;
-  deletedAt: Date;
+  deletedAt: Date | null;
   brand: Brand;
   model: PhoneModel | null;
   category: Category;
 };
 
-function hoursLeft(deletedAt: Date): number {
+function hoursLeft(deletedAt: Date | null): number {
+  if (!deletedAt) return 0;
   const expiresAt = new Date(deletedAt.getTime() + 3 * 24 * 60 * 60 * 1000);
   return Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)));
 }
 
-function expiryLabel(deletedAt: Date): { text: string; color: string } {
+function expiryLabel(deletedAt: Date | null): { text: string; color: string } {
   const hours = hoursLeft(deletedAt);
   if (hours <= 24) return { text: `${hours}h left`, color: "text-red-400" };
   const days = Math.ceil(hours / 24);
