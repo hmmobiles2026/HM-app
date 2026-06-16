@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# customer handover docs (contain credentials)
+CUSTOMER_GUIDE.html
+
 # debug
 npm-debug.log*
 yarn-debug.log*
