@@ -9,6 +9,7 @@ import { UserSettings } from "./user-settings";
 import { BackupSettings } from "./backup-settings";
 import { LicenseSettings } from "./license-settings";
 import { PasswordSettings } from "./password-settings";
+import { SupportSettings } from "./support-settings";
 
 export default async function SettingsPage() {
   const session = await verifySession();
@@ -67,6 +68,9 @@ export default async function SettingsPage() {
           <TabsTrigger value="password" className="text-white data-active:bg-blue-600 data-active:text-white">
             Password
           </TabsTrigger>
+          <TabsTrigger value="support" className="text-white data-active:bg-blue-600 data-active:text-white">
+            Support
+          </TabsTrigger>
         </TabsList>
 
         {isAdminOrOwner && (
@@ -101,6 +105,9 @@ export default async function SettingsPage() {
         )}
         <TabsContent value="password">
           <PasswordSettings />
+        </TabsContent>
+        <TabsContent value="support">
+          <SupportSettings />
         </TabsContent>
       </Tabs>
     </div>
