@@ -290,15 +290,28 @@ export async function addStockBulk(
   redirect("/stock");
 }
 
-export async function deleteProduct(id: string) {
+export async function deleteProduct(id: string): Promise<{ error?: string; success?: string }> {
   const session = await verifySession();
-  if (session.role !== "ADMIN") return { error: "Unauthorized" };
+  if (session.role === "SELLER") return { error: "Unauthorized" };
 
   await prisma.product.update({
     where: { id },
-    data: { isActive: false },
+    data: { isActive: false, deletedAt: new Date() },
   });
 
   revalidatePath("/stock");
-  redirect("/stock");
+  return { success: "Product moved to trash." };
+}
+
+export async function recoverProduct(id: string): Promise<{ error?: string; success?: string }> {
+  const session = await verifySession();
+  if (session.role === "SELLER") return { error: "Unauthorized" };
+
+  await prisma.product.update({
+    where: { id },
+    data: { isActive: true, deletedAt: null },
+  });
+
+  revalidatePath("/stock");
+  return { success: "Product recovered." };
 }

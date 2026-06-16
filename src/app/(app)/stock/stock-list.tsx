@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -11,9 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Search, Edit2, PlusCircle, AlertTriangle } from "lucide-react";
+import { Search, Edit2, PlusCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { deleteProduct } from "@/app/actions/stock";
+import { toast } from "sonner";
 import type { Product, Brand, Category, PhoneModel } from "@/generated/prisma/client";
 
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
@@ -40,24 +49,21 @@ const gradeLabel: Record<string, string> = {
 };
 
 const gradeBadge: Record<string, string> = {
-  ORIGINAL:
-    "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30 ring-1",
+  ORIGINAL: "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30 ring-1",
   COPY_A: "bg-blue-500/20 text-blue-300 ring-blue-500/30 ring-1",
   COPY_B: "bg-amber-500/20 text-amber-300 ring-amber-500/30 ring-1",
   OTHER: "bg-slate-500/20 text-slate-300 ring-slate-500/30 ring-1",
 };
 
-export function StockList({
-  products,
-  brands,
-  categories,
-  canEdit,
-  showCosts,
-}: Props) {
+export function StockList({ products, brands, categories, canEdit, showCosts }: Props) {
   const [search, setSearch] = useState("");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleting, startDelete] = useTransition();
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
+
+  const confirmProduct = confirmId ? products.find((p) => p.id === confirmId) : null;
 
   const filtered = products.filter((p) => {
     if (!search) return true;
@@ -79,8 +85,48 @@ export function StockList({
     startTransition(() => router.replace(`${pathname}?${params.toString()}`));
   }
 
+  function handleDelete() {
+    if (!confirmId) return;
+    const id = confirmId;
+    setConfirmId(null);
+    startDelete(async () => {
+      const result = await deleteProduct(id);
+      if (result.error) toast.error(result.error);
+      else { toast.success("Product moved to trash. You have 3 days to recover it."); router.refresh(); }
+    });
+  }
+
   return (
     <div className="space-y-3">
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!confirmId} onOpenChange={(open) => { if (!open) setConfirmId(null); }}>
+        <DialogContent showCloseButton={false} className="bg-slate-900 border-slate-700 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white">Delete product?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-300">
+            <span className="font-semibold text-white">
+              {confirmProduct
+                ? `${confirmProduct.brand.name}${confirmProduct.model ? ` ${confirmProduct.model.name}` : ""} — ${confirmProduct.name}`
+                : ""}
+            </span>{" "}
+            will be moved to trash. You can recover it within 3 days.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" className="border-slate-700 text-slate-300" onClick={() => setConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-500 text-white"
+              disabled={deleting}
+              onClick={handleDelete}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
@@ -103,9 +149,7 @@ export function StockList({
           <SelectContent className="bg-slate-900 border-slate-700">
             <SelectItem value="all">All Brands</SelectItem>
             {brands.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                {b.name}
-              </SelectItem>
+              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -120,9 +164,7 @@ export function StockList({
           <SelectContent className="bg-slate-900 border-slate-700">
             <SelectItem value="all">All Categories</SelectItem>
             {categories.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -145,69 +187,40 @@ export function StockList({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-900 border-b border-slate-800">
-              <th className="text-left px-4 py-3 text-slate-300 font-medium">
-                Product
-              </th>
-              <th className="text-left px-4 py-3 text-slate-300 font-medium">
-                Grade
-              </th>
-              <th className="text-left px-4 py-3 text-slate-300 font-medium">
-                Category
-              </th>
-              <th className="text-right px-4 py-3 text-slate-300 font-medium">
-                Stock
-              </th>
+              <th className="text-left px-4 py-3 text-slate-300 font-medium">Product</th>
+              <th className="text-left px-4 py-3 text-slate-300 font-medium">Grade</th>
+              <th className="text-left px-4 py-3 text-slate-300 font-medium">Category</th>
+              <th className="text-right px-4 py-3 text-slate-300 font-medium">Stock</th>
               {showCosts && (
-                <th className="text-right px-4 py-3 text-slate-300 font-medium">
-                  Cost
-                </th>
+                <th className="text-right px-4 py-3 text-slate-300 font-medium">Cost</th>
               )}
-              <th className="text-right px-4 py-3 text-slate-300 font-medium">
-                Price
-              </th>
-              <th className="text-right px-4 py-3 text-slate-300 font-medium w-20">
-                Actions
-              </th>
+              <th className="text-right px-4 py-3 text-slate-300 font-medium">Price</th>
+              <th className="text-right px-4 py-3 text-slate-300 font-medium w-24">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
             {filtered.map((p) => {
               const isLow = p.stockQty <= p.lowStockThreshold;
               return (
-                <tr
-                  key={p.id}
-                  className="bg-slate-950 hover:bg-slate-900 transition-colors"
-                >
+                <tr key={p.id} className="bg-slate-950 hover:bg-slate-900 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {p.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={p.imageUrl}
-                          alt={p.name}
-                          className="h-9 w-9 rounded-lg object-cover flex-shrink-0 bg-slate-800"
-                        />
+                        <img src={p.imageUrl} alt={p.name} className="h-9 w-9 rounded-lg object-cover flex-shrink-0 bg-slate-800" />
                       ) : (
                         <div className="h-9 w-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-                          <span className="text-slate-300 text-xs">
-                            {p.brand.name.charAt(0)}
-                          </span>
+                          <span className="text-slate-300 text-xs">{p.brand.name.charAt(0)}</span>
                         </div>
                       )}
                       <div>
                         <p className="text-white font-medium">
-                          {p.brand.name}
-                          {p.model ? ` ${p.model.name}` : ""} — {p.name}
+                          {p.brand.name}{p.model ? ` ${p.model.name}` : ""} — {p.name}
                         </p>
                         {p.tags.length > 0 && (
                           <div className="flex gap-1 mt-0.5">
                             {p.tags.slice(0, 3).map((t) => (
-                              <span
-                                key={t}
-                                className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded"
-                              >
-                                {t}
-                              </span>
+                              <span key={t} className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded">{t}</span>
                             ))}
                           </div>
                         )}
@@ -215,23 +228,15 @@ export function StockList({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}
-                    >
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}>
                       {gradeLabel[p.qualityGrade]}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-400">{p.category.name}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      {isLow && (
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                      )}
-                      <span
-                        className={isLow ? "text-amber-400 font-semibold" : "text-white"}
-                      >
-                        {p.stockQty}
-                      </span>
+                      {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />}
+                      <span className={isLow ? "text-amber-400 font-semibold" : "text-white"}>{p.stockQty}</span>
                     </div>
                   </td>
                   {showCosts && (
@@ -258,6 +263,12 @@ export function StockList({
                           >
                             <PlusCircle className="h-3.5 w-3.5" />
                           </Link>
+                          <button
+                            onClick={() => setConfirmId(p.id)}
+                            className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-red-400")}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </>
                       )}
                     </div>
@@ -268,9 +279,7 @@ export function StockList({
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div className="py-16 text-center text-slate-300 bg-slate-950">
-            No products found
-          </div>
+          <div className="py-16 text-center text-slate-300 bg-slate-950">No products found</div>
         )}
       </div>
 
@@ -279,36 +288,24 @@ export function StockList({
         {filtered.map((p) => {
           const isLow = p.stockQty <= p.lowStockThreshold;
           return (
-            <div
-              key={p.id}
-              className="bg-slate-900 border border-slate-800 rounded-xl p-3"
-            >
+            <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium text-sm truncate">
-                    {p.brand.name}
-                    {p.model ? ` ${p.model.name}` : ""} — {p.name}
+                    {p.brand.name}{p.model ? ` ${p.model.name}` : ""} — {p.name}
                   </p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}
-                    >
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}>
                       {gradeLabel[p.qualityGrade]}
                     </span>
-                    <span className="text-xs text-slate-300">
-                      {p.category.name}
-                    </span>
+                    <span className="text-xs text-slate-300">{p.category.name}</span>
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p
-                    className={`text-sm font-bold ${isLow ? "text-amber-400" : "text-white"}`}
-                  >
+                  <p className={`text-sm font-bold ${isLow ? "text-amber-400" : "text-white"}`}>
                     {p.stockQty} pcs
                   </p>
-                  <p className="text-xs text-blue-400">
-                    LKR {Number(p.sellingPrice).toLocaleString("en-LK")}
-                  </p>
+                  <p className="text-xs text-blue-400">LKR {Number(p.sellingPrice).toLocaleString("en-LK")}</p>
                 </div>
               </div>
               {canEdit && (
@@ -321,6 +318,12 @@ export function StockList({
                     href={`/stock/${p.id}?tab=stock-in`}
                     className={cn(buttonVariants({ size: "sm" }), "flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-500")}
                   >+ Stock</Link>
+                  <button
+                    onClick={() => setConfirmId(p.id)}
+                    className={cn(buttonVariants({ size: "sm", variant: "outline" }), "h-7 w-7 p-0 border-red-900/50 text-red-400 hover:bg-red-950")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )}
             </div>

@@ -1,6 +1,7 @@
 ﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { StockList } from "./stock-list";
+import { DeletedProducts } from "./deleted-products";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -63,10 +64,20 @@ export default async function StockPage({
 }) {
   const session = await verifySession();
   const params = await searchParams;
-  const [products, brands, categories] = await Promise.all([
+
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+  const [products, brands, categories, deletedProducts] = await Promise.all([
     getStock(params),
     prisma.brand.findMany({ orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    session.role !== "SELLER"
+      ? prisma.product.findMany({
+          where: { isActive: false, deletedAt: { gte: threeDaysAgo } },
+          include: { brand: true, model: true, category: true },
+          orderBy: { deletedAt: "desc" },
+        })
+      : [],
   ]);
 
   const canEdit = session.role === "ADMIN" || session.role === "OWNER";
@@ -114,6 +125,7 @@ export default async function StockPage({
         canEdit={canEdit}
         showCosts={session.role !== "SELLER"}
       />
+      <DeletedProducts products={deletedProducts} />
     </div>
   );
 }
