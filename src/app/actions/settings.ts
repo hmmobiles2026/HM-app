@@ -133,3 +133,31 @@ export async function resetPassword(id: string, newPassword: string): Promise<Ac
   await prisma.user.update({ where: { id }, data: { password: hashed } });
   return { success: "Password reset." };
 }
+
+// ── Change own password ───────────────────────────────────────────────────────
+
+export async function changePassword(
+  _: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const session = await verifySession();
+
+  const current = (formData.get("currentPassword") as string) ?? "";
+  const next = (formData.get("newPassword") as string) ?? "";
+  const confirm = (formData.get("confirmPassword") as string) ?? "";
+
+  if (!current || !next || !confirm) return { error: "All fields are required." };
+  if (next.length < 6) return { error: "New password must be at least 6 characters." };
+  if (next !== confirm) return { error: "Passwords do not match." };
+
+  const user = await prisma.user.findUnique({ where: { id: session.userId } });
+  if (!user) return { error: "User not found." };
+
+  const valid = await bcrypt.compare(current, user.password);
+  if (!valid) return { error: "Current password is incorrect." };
+
+  const hashed = await bcrypt.hash(next, 10);
+  await prisma.user.update({ where: { id: session.userId }, data: { password: hashed } });
+
+  return { success: "Password changed successfully." };
+}
