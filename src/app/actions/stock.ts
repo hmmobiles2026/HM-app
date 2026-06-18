@@ -213,14 +213,14 @@ export async function addStock(
     ]),
     prisma.product.findUnique({
       where: { id: productId },
-      include: { brand: true, model: true },
+      include: { brand: true, model: true, partBrand: true },
     }),
     prisma.user.findUnique({ where: { id: session.userId }, select: { name: true } }),
   ]);
 
   if (product && user) {
     notifyStockIn(
-      [{ productName: product.name, brandName: product.brand.name, modelName: product.model?.name ?? null, quantity, costPrice: Number(product.costPrice) }],
+      [{ productName: product.name, brandName: product.brand.name, modelName: product.model?.name ?? null, partBrandName: product.partBrand?.name ?? null, quantity, costPrice: Number(product.costPrice) }],
       user.name,
       note || null
     ).catch(() => {});
@@ -272,7 +272,7 @@ export async function addStockBulk(
     ),
     prisma.product.findMany({
       where: { id: { in: productIds } },
-      include: { brand: true, model: true },
+      include: { brand: true, model: true, partBrand: true },
     }),
     prisma.user.findUnique({ where: { id: session.userId }, select: { name: true } }),
   ]);
@@ -281,7 +281,7 @@ export async function addStockBulk(
     notifyStockIn(
       items.map(({ productId, quantity }) => {
         const p = products.find((x) => x.id === productId)!;
-        return { productName: p.name, brandName: p.brand.name, modelName: p.model?.name ?? null, quantity, costPrice: Number(p.costPrice) };
+        return { productName: p.name, brandName: p.brand.name, modelName: p.model?.name ?? null, partBrandName: p.partBrand?.name ?? null, quantity, costPrice: Number(p.costPrice) };
       }),
       user.name,
       note

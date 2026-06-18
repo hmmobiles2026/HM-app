@@ -92,10 +92,11 @@ async function buildStockMessage(query: string): Promise<string> {
         { brand: { name: { contains: query, mode: "insensitive" } } },
         { model: { name: { contains: query, mode: "insensitive" } } },
         { name: { contains: query, mode: "insensitive" } },
+        { partBrand: { name: { contains: query, mode: "insensitive" } } },
         { tags: { has: query } },
       ],
     },
-    include: { brand: true, model: true },
+    include: { brand: true, model: true, partBrand: true },
     orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
     take: 10,
   });
@@ -105,7 +106,8 @@ async function buildStockMessage(query: string): Promise<string> {
   const lines = products.map((p) => {
     const isLow = p.stockQty <= p.lowStockThreshold;
     const flag = isLow ? " ⚠️" : "";
-    return `• ${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}: *${p.stockQty}* pcs${flag}`;
+    const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
+    return `• ${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}: *${p.stockQty}* pcs${flag}`;
   });
 
   return `📦 *Stock: "${query}"*\n\n${lines.join("\n")}`;

@@ -7,6 +7,7 @@ type LowStockProduct = {
   lowStockThreshold: number;
   brand: { name: string };
   model: { name: string } | null;
+  partBrand?: { name: string } | null;
 };
 
 export async function notifyLowStock(products: LowStockProduct[]): Promise<void> {
@@ -25,7 +26,8 @@ export async function notifyLowStock(products: LowStockProduct[]): Promise<void>
   });
 
   const lines = products.map((p) => {
-    const label = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`;
+    const partBrandSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
+    const label = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}${partBrandSuffix}`;
     if (p.stockQty === 0) {
       return `🔴 *OUT OF STOCK*\n📦 ${label}\n⚠️ Reorder immediately`;
     }
@@ -46,6 +48,7 @@ type StockInItem = {
   productName: string;
   brandName: string;
   modelName: string | null;
+  partBrandName?: string | null;
   quantity: number;
   costPrice: number;
 };
@@ -70,7 +73,8 @@ export async function notifyStockIn(
   let text: string;
   if (items.length === 1) {
     const it = items[0];
-    const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}`;
+    const partSuffix = it.partBrandName ? ` (${it.partBrandName})` : "";
+    const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}${partSuffix}`;
     text =
       `📦 *Stock In — HM Stocks*\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -82,7 +86,8 @@ export async function notifyStockIn(
       `\n🕐 _${time}_`;
   } else {
     const lines = items.map((it) => {
-      const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}`;
+      const partSuffix = it.partBrandName ? ` (${it.partBrandName})` : "";
+      const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}${partSuffix}`;
       return `• ${label} × *${it.quantity}* @ ${fmt(it.costPrice)}`;
     }).join("\n");
     const totalUnits = items.reduce((s, it) => s + it.quantity, 0);

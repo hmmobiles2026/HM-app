@@ -18,7 +18,7 @@ async function getReorderSuggestions() {
     }),
     prisma.product.findMany({
       where: { isActive: true },
-      include: { brand: true, model: true, category: true },
+      include: { brand: true, model: true, category: true, partBrand: true },
     }),
   ]);
 
@@ -34,7 +34,7 @@ async function getReorderSuggestions() {
 
     return {
       id: p.id,
-      name: `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`,
+      name: `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}${p.partBrand ? ` (${p.partBrand.name})` : ""}`,
       grade: p.qualityGrade,
       stockQty: p.stockQty,
       soldLast30,

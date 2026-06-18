@@ -24,25 +24,27 @@ export async function buildDailyReport(): Promise<string> {
       include: {
         items: {
           include: {
-            product: { include: { brand: true, model: true } },
+            product: { include: { brand: true, model: true, partBrand: true } },
           },
         },
       },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.$queryRaw<{ name: string; brandName: string; stockQty: number }[]>`
-      SELECT p.name, b.name as "brandName", p."stockQty"
+    prisma.$queryRaw<{ name: string; brandName: string; partBrandName: string | null; stockQty: number }[]>`
+      SELECT p.name, b.name as "brandName", pb.name as "partBrandName", p."stockQty"
       FROM "Product" p
       JOIN "Brand" b ON b.id = p."brandId"
+      LEFT JOIN "PartBrand" pb ON pb.id = p."partBrandId"
       WHERE p."isActive" = true AND p."stockQty" <= p."lowStockThreshold"
       ORDER BY p."stockQty" ASC
       LIMIT 10
     `,
-    prisma.$queryRaw<{ name: string; brandName: string; quantity: number; note: string | null }[]>`
-      SELECT p.name, b.name as "brandName", sm.quantity, sm.note
+    prisma.$queryRaw<{ name: string; brandName: string; partBrandName: string | null; quantity: number; note: string | null }[]>`
+      SELECT p.name, b.name as "brandName", pb.name as "partBrandName", sm.quantity, sm.note
       FROM "StockMovement" sm
       JOIN "Product" p ON p.id = sm."productId"
       JOIN "Brand" b ON b.id = p."brandId"
+      LEFT JOIN "PartBrand" pb ON pb.id = p."partBrandId"
       WHERE sm.type = 'ADJUSTMENT'
         AND sm.quantity < 0
         AND sm."createdAt" >= ${slStartOfDay}
@@ -76,7 +78,8 @@ export async function buildDailyReport(): Promise<string> {
     const header = `${numerals[i] ?? `${i + 1}.`} ${time}  *${fmt(Number(sale.totalRevenue))}*  _(profit: ${fmt(Number(sale.profit))})_`;
     const itemLines = sale.items.map((it) => {
       const p = it.product;
-      const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}`;
+      const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
+      const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}`;
       return `   • ${name} × ${it.quantity}`;
     }).join("\n");
     const note = sale.note ? `\n   📝 ${sale.note}` : "";
@@ -92,7 +95,8 @@ export async function buildDailyReport(): Promise<string> {
   const lowLines = lowStock.length > 0
     ? lowStock.map((p) => {
         const icon = p.stockQty === 0 ? "🔴" : "🟡";
-        return `${icon} ${p.brandName} — ${p.name}: *${p.stockQty}* left`;
+        const partSuffix = p.partBrandName ? ` (${p.partBrandName})` : "";
+        return `${icon} ${p.brandName} — ${p.name}${partSuffix}: *${p.stockQty}* left`;
       }).join("\n")
     : "✅ All stock levels OK";
 
@@ -101,7 +105,8 @@ export async function buildDailyReport(): Promise<string> {
       `📉 *WRITTEN OFF TODAY*\n` +
       lostStock.map((m) => {
         const note = m.note ? ` _(${m.note})_` : "";
-        return `• ${m.brandName} — ${m.name}: *${Math.abs(m.quantity)}* pcs${note}`;
+        const partSuffix = m.partBrandName ? ` (${m.partBrandName})` : "";
+        return `• ${m.brandName} — ${m.name}${partSuffix}: *${Math.abs(m.quantity)}* pcs${note}`;
       }).join("\n") + "\n\n"
     : "";
 

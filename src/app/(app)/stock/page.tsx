@@ -31,12 +31,7 @@ async function getStock(searchParams: {
 
   const products = await prisma.product.findMany({
     where: where as NonNullable<Parameters<typeof prisma.product.findMany>[0]>["where"],
-    include: {
-      brand: true,
-      model: true,
-      category: true,
-      partBrand: true,
-    },
+    include: { brand: true, model: true, category: true, partBrand: true },
     orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
   });
 

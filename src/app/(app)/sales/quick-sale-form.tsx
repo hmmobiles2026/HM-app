@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, ShoppingCart, Minus, Tag } from "lucide-react";
-import type { Product, Brand, PhoneModel, Category } from "@/generated/prisma/client";
+import type { Product, Brand, PhoneModel, PartBrand, Category } from "@/generated/prisma/client";
 
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   costPrice: number;
   sellingPrice: number;
   brand: Brand;
   model: PhoneModel | null;
+  partBrand: PartBrand | null;
   category: Category;
 };
 
@@ -46,7 +47,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
 
   const productItems = products.map((p) => ({
     id: p.id,
-    label: `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`,
+    label: `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}${p.partBrand ? ` (${p.partBrand.name})` : ""}`,
     sublabel: `${gradeLabel[p.qualityGrade]}  ·  ${p.stockQty} in stock  ·  LKR ${Number(p.sellingPrice).toLocaleString("en-LK")}`,
   }));
 
@@ -118,7 +119,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
             )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-white truncate">
-                {selectedProduct.brand.name}{selectedProduct.model ? ` ${selectedProduct.model.name}` : ""} — {selectedProduct.name}
+                {selectedProduct.brand.name}{selectedProduct.model ? ` ${selectedProduct.model.name}` : ""} — {selectedProduct.name}{selectedProduct.partBrand ? ` (${selectedProduct.partBrand.name})` : ""}
               </p>
               <p className="text-xs text-slate-400">
                 LKR {Number(selectedProduct.sellingPrice).toLocaleString("en-LK")} · {selectedProduct.stockQty} in stock
@@ -175,7 +176,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white leading-snug truncate">
-                      {item.product.brand.name}{item.product.model ? ` ${item.product.model.name}` : ""} — {item.product.name}
+                      {item.product.brand.name}{item.product.model ? ` ${item.product.model.name}` : ""} — {item.product.name}{item.product.partBrand ? ` (${item.product.partBrand.name})` : ""}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${gradeBadge[item.product.qualityGrade]}`}>

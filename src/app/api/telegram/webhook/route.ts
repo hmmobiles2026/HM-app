@@ -249,20 +249,22 @@ async function buildStockMessage(query: string, canViewCosts: boolean): Promise<
         { brand: { name: { contains: query, mode: "insensitive" } } },
         { model: { name: { contains: query, mode: "insensitive" } } },
         { name: { contains: query, mode: "insensitive" } },
+        { partBrand: { name: { contains: query, mode: "insensitive" } } },
         { tags: { has: query.toLowerCase() } },
       ],
     },
-    include: { brand: true, model: true },
+    include: { brand: true, model: true, partBrand: true },
     orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
     take: 10,
   });
 
   if (products.length === 0) {
-    return `❌ *Nothing found for "${query}"*\n\nTry searching by brand, model, or part name.`;
+    return `❌ *Nothing found for "${query}"*\n\nTry searching by brand, model, part name, or part brand.`;
   }
 
   const lines = products.map((p) => {
-    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}`;
+    const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
+    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}`;
     const sell = Number(p.sellingPrice);
     const cost = Number(p.costPrice);
     const margin = sell > 0 ? ((sell - cost) / sell * 100).toFixed(0) : "0";
@@ -344,18 +346,12 @@ async function buildSummaryMessage(text: string): Promise<string> {
 }
 
 async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
-  const products = await prisma.$queryRaw<
-    { name: string; stockQty: number; brandName: string; modelName: string | null; sellingPrice: number; costPrice: number }[]
-  >`
-    SELECT p.name, p."stockQty", b.name as "brandName", pm.name as "modelName",
-           p."sellingPrice"::float as "sellingPrice", p."costPrice"::float as "costPrice"
-    FROM "Product" p
-    JOIN "Brand" b ON b.id = p."brandId"
-    LEFT JOIN "PhoneModel" pm ON pm.id = p."modelId"
-    WHERE p."isActive" = true AND p."stockQty" <= p."lowStockThreshold"
-    ORDER BY p."stockQty" ASC
-    LIMIT 15
-  `;
+  const products = await prisma.product.findMany({
+    where: { isActive: true },
+    include: { brand: true, model: true, partBrand: true },
+    orderBy: { stockQty: "asc" },
+    take: 15,
+  }).then((all) => all.filter((p) => p.stockQty <= p.lowStockThreshold));
 
   if (products.length === 0) {
     return `✅ *All stock levels are healthy!*`;
@@ -363,11 +359,14 @@ async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
 
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
   const lines = products.map((p) => {
-    const name = `${p.brandName}${p.modelName ? ` ${p.modelName}` : ""} ${p.name}`;
+    const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
+    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}`;
     const icon = p.stockQty === 0 ? "🔴" : "🟡";
+    const sell = Number(p.sellingPrice);
+    const cost = Number(p.costPrice);
     const priceInfo = canViewCosts
-      ? `Cost: ${fmt(p.costPrice)}  →  Price: *${fmt(p.sellingPrice)}*`
-      : `Price: *${fmt(p.sellingPrice)}*`;
+      ? `Cost: ${fmt(cost)}  →  Price: *${fmt(sell)}*`
+      : `Price: *${fmt(sell)}*`;
     return `${icon} *${name}*\n   📦 ${p.stockQty} left  |  ${priceInfo}`;
   });
 

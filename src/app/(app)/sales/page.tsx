@@ -11,7 +11,7 @@ export default async function SalesPage() {
   const [rawProducts, rawSales] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, stockQty: { gt: 0 } },
-      include: { brand: true, model: true, category: true },
+      include: { brand: true, model: true, category: true, partBrand: true },
       orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
     }),
     prisma.sale.findMany({
@@ -27,6 +27,7 @@ export default async function SalesPage() {
                 qualityGrade: true,
                 brand: { select: { name: true } },
                 model: { select: { name: true } },
+                partBrand: { select: { name: true } },
               },
             },
             returns: { select: { quantity: true } },

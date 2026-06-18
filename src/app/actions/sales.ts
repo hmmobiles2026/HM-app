@@ -110,7 +110,7 @@ export async function createSale(
   const soldIds = items.map((i) => i.productId);
   prisma.product.findMany({
     where: { id: { in: soldIds }, isActive: true },
-    include: { brand: true, model: true },
+    include: { brand: true, model: true, partBrand: true },
   }).then((updated) => {
     const lowStock = updated.filter((p) => p.stockQty <= p.lowStockThreshold);
     notifyLowStock(lowStock);

@@ -18,6 +18,7 @@ type SaleItem = {
     qualityGrade: string;
     brand: { name: string };
     model: { name: string } | null;
+    partBrand: { name: string } | null;
   };
 };
 
@@ -134,7 +135,7 @@ function SaleRow({ sale, showFinancials }: { sale: Sale; showFinancials: boolean
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {sale.items.map((item) => {
-                  const label = `${item.product.brand.name}${item.product.model ? ` ${item.product.model.name}` : ""} — ${item.product.name}`;
+                  const label = `${item.product.brand.name}${item.product.model ? ` ${item.product.model.name}` : ""} — ${item.product.name}${item.product.partBrand ? ` (${item.product.partBrand.name})` : ""}`;
                   const subtotal = Number(item.unitPrice) * item.quantity;
                   const itemProfit = (Number(item.unitPrice) - Number(item.unitCost)) * item.quantity;
                   return (
@@ -192,7 +193,7 @@ function SaleRow({ sale, showFinancials }: { sale: Sale; showFinancials: boolean
           {/* Mobile items */}
           <div className="md:hidden px-4 py-3 space-y-3">
             {sale.items.map((item) => {
-              const label = `${item.product.brand.name}${item.product.model ? ` ${item.product.model.name}` : ""} — ${item.product.name}`;
+              const label = `${item.product.brand.name}${item.product.model ? ` ${item.product.model.name}` : ""} — ${item.product.name}${item.product.partBrand ? ` (${item.product.partBrand.name})` : ""}`;
               return (
                 <div key={item.id} className="space-y-1.5">
                   <div className="flex items-center gap-2.5">
