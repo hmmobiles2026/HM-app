@@ -18,28 +18,32 @@ import type {
   Brand,
   Category,
   PhoneModel,
+  PartBrand,
   Product,
   QualityGrade,
 } from "@/generated/prisma/client";
 
 type BrandWithModels = Brand & { models: PhoneModel[] };
+type CategoryWithPartBrands = Category & { partBrands: PartBrand[] };
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   costPrice: number;
   sellingPrice: number;
   brand: Brand;
   model: PhoneModel | null;
   category: Category;
+  partBrand: PartBrand | null;
 };
 
 type Props = {
   brands: BrandWithModels[];
-  categories: Category[];
+  categories: CategoryWithPartBrands[];
   product?: ProductWithRelations;
   showCosts?: boolean;
 };
 
 export function ProductForm({ brands, categories, product, showCosts = true }: Props) {
   const [selectedBrandId, setSelectedBrandId] = useState(product?.brandId ?? "");
+  const [selectedCategoryId, setSelectedCategoryId] = useState(product?.categoryId ?? "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +54,8 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
   const modelItems =
     brands.find((b) => b.id === selectedBrandId)?.models.map((m) => ({ id: m.id, label: m.name })) ?? [];
   const categoryItems = categories.map((c) => ({ id: c.id, label: c.name }));
+  const partBrandItems =
+    categories.find((c) => c.id === selectedCategoryId)?.partBrands.map((pb) => ({ id: pb.id, label: pb.name })) ?? [];
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -105,6 +111,7 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
             name="categoryId"
             items={categoryItems}
             defaultValue={product?.categoryId ?? ""}
+            onChange={(id) => setSelectedCategoryId(id)}
             placeholder="Search category…"
           />
           {state?.errors?.categoryId && (
@@ -129,6 +136,22 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
           </Select>
         </div>
       </div>
+
+      {/* Part Brand */}
+      {partBrandItems.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-slate-300 text-sm font-medium">
+            Part Brand <span className="text-slate-400 font-normal">(optional)</span>
+          </Label>
+          <Combobox
+            key={selectedCategoryId}
+            name="partBrandId"
+            items={partBrandItems}
+            defaultValue={product?.partBrandId ?? ""}
+            placeholder="Search part brand…"
+          />
+        </div>
+      )}
 
       {/* Part Name */}
       <div className="space-y-1.5">

@@ -11,7 +11,10 @@ export default async function NewProductPage() {
       include: { models: { where: { deletedAt: null }, orderBy: { name: "asc" } } },
       orderBy: { name: "asc" },
     }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.category.findMany({
+      include: { partBrands: { where: { deletedAt: null }, orderBy: { name: "asc" } } },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   return (

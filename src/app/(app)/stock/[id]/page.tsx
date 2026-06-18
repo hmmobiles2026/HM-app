@@ -21,14 +21,17 @@ export default async function ProductDetailPage({
   const [product, brands, categories, movements, priceEntries] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
-      include: { brand: true, model: true, category: true },
+      include: { brand: true, model: true, category: true, partBrand: true },
     }),
     prisma.brand.findMany({
       where: { deletedAt: null },
       include: { models: { where: { deletedAt: null }, orderBy: { name: "asc" } } },
       orderBy: { name: "asc" },
     }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.category.findMany({
+      include: { partBrands: { where: { deletedAt: null }, orderBy: { name: "asc" } } },
+      orderBy: { name: "asc" },
+    }),
     prisma.stockMovement.findMany({
       where: { productId: id },
       include: { createdBy: { select: { name: true } } },
@@ -48,6 +51,7 @@ export default async function ProductDetailPage({
     ...product,
     costPrice: product.costPrice.toNumber(),
     sellingPrice: product.sellingPrice.toNumber(),
+    partBrand: product.partBrand ?? null,
   };
 
   const serializedPriceEntries = priceEntries.map((e) => ({

@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { Search, Edit2, PlusCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { deleteProduct } from "@/app/actions/stock";
 import { toast } from "sonner";
-import type { Product, Brand, Category, PhoneModel } from "@/generated/prisma/client";
+import type { Product, Brand, Category, PhoneModel, PartBrand } from "@/generated/prisma/client";
 
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   costPrice: number;
@@ -31,6 +31,7 @@ type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   brand: Brand;
   model: PhoneModel | null;
   category: Category;
+  partBrand: PartBrand | null;
 };
 
 type Props = {
@@ -232,7 +233,12 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
                       {gradeLabel[p.qualityGrade]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-400">{p.category.name}</td>
+                  <td className="px-4 py-3">
+                    <p className="text-slate-400 text-sm">{p.category.name}</p>
+                    {p.partBrand && (
+                      <p className="text-xs text-slate-500 mt-0.5">{p.partBrand.name}</p>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />}
@@ -298,7 +304,9 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}>
                       {gradeLabel[p.qualityGrade]}
                     </span>
-                    <span className="text-xs text-slate-300">{p.category.name}</span>
+                    <span className="text-xs text-slate-300">
+                      {p.category.name}{p.partBrand ? ` · ${p.partBrand.name}` : ""}
+                    </span>
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">

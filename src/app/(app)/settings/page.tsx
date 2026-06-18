@@ -4,6 +4,7 @@ import { getLicenseStatus } from "@/lib/license";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandSettings } from "./brand-settings";
 import { ModelSettings } from "./model-settings";
+import { PartBrandSettings } from "./part-brand-settings";
 import { CategorySettings } from "./category-settings";
 import { UserSettings } from "./user-settings";
 import { BackupSettings } from "./backup-settings";
@@ -39,7 +40,17 @@ export default async function SettingsPage() {
           orderBy: { deletedAt: "desc" },
         })
       : [],
-    isAdminOrOwner ? prisma.category.findMany({ orderBy: { name: "asc" } }) : [],
+    isAdminOrOwner
+      ? prisma.category.findMany({
+          include: {
+            partBrands: {
+              where: { OR: [{ deletedAt: null }, { deletedAt: { gte: threeDaysAgo } }] },
+              orderBy: { name: "asc" },
+            },
+          },
+          orderBy: { name: "asc" },
+        })
+      : [],
     isAdmin ? prisma.user.findMany({ orderBy: { name: "asc" } }) : [],
     isAdminOrOwner ? getLicenseStatus() : null,
   ]);
@@ -58,6 +69,11 @@ export default async function SettingsPage() {
           {isAdminOrOwner && (
             <TabsTrigger value="models" className="text-white data-active:bg-blue-600 data-active:text-white">
               Models
+            </TabsTrigger>
+          )}
+          {isAdminOrOwner && (
+            <TabsTrigger value="partbrands" className="text-white data-active:bg-blue-600 data-active:text-white">
+              Part Brands
             </TabsTrigger>
           )}
           {isAdminOrOwner && (
@@ -96,6 +112,11 @@ export default async function SettingsPage() {
         {isAdminOrOwner && (
           <TabsContent value="models">
             <ModelSettings brands={brands} isAdmin={isAdmin} />
+          </TabsContent>
+        )}
+        {isAdminOrOwner && (
+          <TabsContent value="partbrands">
+            <PartBrandSettings categories={categories} isAdmin={isAdmin} />
           </TabsContent>
         )}
         {isAdminOrOwner && (

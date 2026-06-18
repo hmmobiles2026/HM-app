@@ -80,6 +80,39 @@ export async function recoverModel(id: string): Promise<ActionState> {
   return { success: "Model recovered." };
 }
 
+// ── Part Brands ──────────────────────────────────────────────────────────────
+
+export async function createPartBrand(
+  _: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+  const name = (formData.get("name") as string)?.trim();
+  const categoryId = formData.get("categoryId") as string;
+  if (!name || !categoryId) return { error: "All fields required" };
+  try {
+    await prisma.partBrand.create({ data: { name, categoryId } });
+    revalidatePath("/settings");
+    return { success: `Part brand "${name}" created.` };
+  } catch {
+    return { error: "Part brand already exists for this category." };
+  }
+}
+
+export async function deletePartBrand(id: string): Promise<ActionState> {
+  await verifyRole(["ADMIN"]);
+  await prisma.partBrand.update({ where: { id }, data: { deletedAt: new Date() } });
+  revalidatePath("/settings");
+  return { success: "Part brand moved to trash. You have 3 days to recover it." };
+}
+
+export async function recoverPartBrand(id: string): Promise<ActionState> {
+  await verifyRole(["ADMIN"]);
+  await prisma.partBrand.update({ where: { id }, data: { deletedAt: null } });
+  revalidatePath("/settings");
+  return { success: "Part brand recovered." };
+}
+
 // ── Categories ───────────────────────────────────────────────────────────────
 
 export async function createCategory(

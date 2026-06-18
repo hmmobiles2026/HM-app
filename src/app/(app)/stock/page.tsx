@@ -35,6 +35,7 @@ async function getStock(searchParams: {
       brand: true,
       model: true,
       category: true,
+      partBrand: true,
     },
     orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
   });

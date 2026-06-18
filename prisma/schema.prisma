@@ -50,7 +50,21 @@ model Category {
   name      String   @unique
   createdAt DateTime @default(now())
 
-  products  Product[]
+  products   Product[]
+  partBrands PartBrand[]
+}
+
+model PartBrand {
+  id         String    @id @default(cuid())
+  name       String
+  category   Category  @relation(fields: [categoryId], references: [id])
+  categoryId String
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  products Product[]
+
+  @@index([categoryId, name])
 }
 
 model Brand {
@@ -94,6 +108,8 @@ model Product {
   imagePublicId   String?
   category        Category     @relation(fields: [categoryId], references: [id])
   categoryId      String
+  partBrand       PartBrand?   @relation(fields: [partBrandId], references: [id])
+  partBrandId     String?
   brand           Brand        @relation(fields: [brandId], references: [id])
   brandId         String
   model           PhoneModel?  @relation(fields: [modelId], references: [id])
