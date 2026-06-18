@@ -28,9 +28,23 @@ export async function createBrand(
 
 export async function deleteBrand(id: string): Promise<ActionState> {
   await verifyRole(["ADMIN"]);
-  await prisma.brand.delete({ where: { id } });
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.phoneModel.updateMany({ where: { brandId: id, deletedAt: null }, data: { deletedAt: now } }),
+    prisma.brand.update({ where: { id }, data: { deletedAt: now } }),
+  ]);
   revalidatePath("/settings");
-  return { success: "Brand deleted." };
+  return { success: "Brand moved to trash. You have 3 days to recover it." };
+}
+
+export async function recoverBrand(id: string): Promise<ActionState> {
+  await verifyRole(["ADMIN"]);
+  await prisma.$transaction([
+    prisma.phoneModel.updateMany({ where: { brandId: id, deletedAt: { not: null } }, data: { deletedAt: null } }),
+    prisma.brand.update({ where: { id }, data: { deletedAt: null } }),
+  ]);
+  revalidatePath("/settings");
+  return { success: "Brand and its models recovered." };
 }
 
 // ── Models ───────────────────────────────────────────────────────────────────
@@ -54,9 +68,16 @@ export async function createModel(
 
 export async function deleteModel(id: string): Promise<ActionState> {
   await verifyRole(["ADMIN"]);
-  await prisma.phoneModel.delete({ where: { id } });
+  await prisma.phoneModel.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath("/settings");
-  return { success: "Model deleted." };
+  return { success: "Model moved to trash. You have 3 days to recover it." };
+}
+
+export async function recoverModel(id: string): Promise<ActionState> {
+  await verifyRole(["ADMIN"]);
+  await prisma.phoneModel.update({ where: { id }, data: { deletedAt: null } });
+  revalidatePath("/settings");
+  return { success: "Model recovered." };
 }
 
 // ── Categories ───────────────────────────────────────────────────────────────

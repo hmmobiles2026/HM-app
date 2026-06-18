@@ -227,19 +227,13 @@ async function main() {
   let totalModels = 0;
 
   for (const [brandName, models] of Object.entries(data)) {
-    const brand = await prisma.brand.upsert({
-      where: { name: brandName },
-      update: {},
-      create: { name: brandName },
-    });
+    const brand = await prisma.brand.findFirst({ where: { name: brandName, deletedAt: null } })
+      ?? await prisma.brand.create({ data: { name: brandName } });
 
     let added = 0;
     for (const model of models) {
-      await prisma.phoneModel.upsert({
-        where: { brandId_name: { brandId: brand.id, name: model } },
-        update: {},
-        create: { name: model, brandId: brand.id },
-      });
+      await (prisma.phoneModel.findFirst({ where: { brandId: brand.id, name: model, deletedAt: null } })
+        .then(existing => existing ?? prisma.phoneModel.create({ data: { name: model, brandId: brand.id } })));
       added++;
     }
 

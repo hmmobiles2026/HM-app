@@ -56,11 +56,8 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
       const qualityGrade = validGrades.includes(grade) ? grade as "ORIGINAL" | "COPY_A" | "COPY_B" | "OTHER" : "OTHER";
 
       const [brand, category] = await Promise.all([
-        prisma.brand.upsert({
-          where: { name: brandName },
-          create: { name: brandName },
-          update: {},
-        }),
+        prisma.brand.findFirst({ where: { name: brandName, deletedAt: null } })
+          .then(b => b ?? prisma.brand.create({ data: { name: brandName } })),
         prisma.category.upsert({
           where: { name: categoryName },
           create: { name: categoryName },
@@ -70,11 +67,9 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
 
       let modelId: string | null = null;
       if (modelName) {
-        const model = await prisma.phoneModel.upsert({
-          where: { brandId_name: { brandId: brand.id, name: modelName } },
-          create: { brandId: brand.id, name: modelName },
-          update: {},
-        });
+        const model = await prisma.phoneModel.findFirst({
+          where: { brandId: brand.id, name: modelName, deletedAt: null },
+        }).then(m => m ?? prisma.phoneModel.create({ data: { brandId: brand.id, name: modelName } }));
         modelId = model.id;
       }
 

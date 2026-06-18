@@ -54,24 +54,28 @@ model Category {
 }
 
 model Brand {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id        String    @id @default(cuid())
+  name      String
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
 
   models   PhoneModel[]
   products Product[]
+
+  @@index([name])
 }
 
 model PhoneModel {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand     Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
   brandId   String
-  createdAt DateTime @default(now())
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
 
   products Product[]
 
-  @@unique([brandId, name])
+  @@index([brandId, name])
 }
 
 enum QualityGrade {

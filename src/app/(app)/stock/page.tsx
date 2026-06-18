@@ -69,7 +69,7 @@ export default async function StockPage({
 
   const [products, brands, categories, deletedProducts] = await Promise.all([
     getStock(params),
-    prisma.brand.findMany({ orderBy: { name: "asc" } }),
+    prisma.brand.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     session.role !== "SELLER"
       ? prisma.product.findMany({

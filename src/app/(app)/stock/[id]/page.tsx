@@ -24,7 +24,8 @@ export default async function ProductDetailPage({
       include: { brand: true, model: true, category: true },
     }),
     prisma.brand.findMany({
-      include: { models: { orderBy: { name: "asc" } } },
+      where: { deletedAt: null },
+      include: { models: { where: { deletedAt: null }, orderBy: { name: "asc" } } },
       orderBy: { name: "asc" },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),

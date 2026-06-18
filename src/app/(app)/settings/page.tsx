@@ -17,11 +17,26 @@ export default async function SettingsPage() {
   const isAdmin = session.role === "ADMIN";
   const isAdminOrOwner = session.role === "ADMIN" || session.role === "OWNER";
 
-  const [brands, categories, users, licenseStatus] = await Promise.all([
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+  const [brands, deletedBrands, categories, users, licenseStatus] = await Promise.all([
     isAdminOrOwner
       ? prisma.brand.findMany({
-          include: { models: { orderBy: { name: "asc" } } },
+          where: { deletedAt: null },
+          include: {
+            models: {
+              where: { OR: [{ deletedAt: null }, { deletedAt: { gte: threeDaysAgo } }] },
+              orderBy: { name: "asc" },
+            },
+          },
           orderBy: { name: "asc" },
+        })
+      : [],
+    isAdmin
+      ? prisma.brand.findMany({
+          where: { deletedAt: { gte: threeDaysAgo } },
+          include: { models: { orderBy: { name: "asc" } } },
+          orderBy: { deletedAt: "desc" },
         })
       : [],
     isAdminOrOwner ? prisma.category.findMany({ orderBy: { name: "asc" } }) : [],
@@ -75,7 +90,7 @@ export default async function SettingsPage() {
 
         {isAdminOrOwner && (
           <TabsContent value="brands">
-            <BrandSettings brands={brands} isAdmin={isAdmin} />
+            <BrandSettings brands={brands} deletedBrands={deletedBrands} isAdmin={isAdmin} />
           </TabsContent>
         )}
         {isAdminOrOwner && (

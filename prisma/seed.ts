@@ -23,73 +23,34 @@ async function main() {
   console.log(`✓ ${categories.length} categories`);
 
   // Brands + Models
-  const samsung = await prisma.brand.upsert({
-    where: { name: "Samsung" },
-    update: {},
-    create: { name: "Samsung" },
-  });
-  const samsungModels = ["A54", "A34", "A14", "A04", "S23", "S22", "S21", "A52", "A72", "M14"];
-  for (const m of samsungModels) {
-    await prisma.phoneModel.upsert({
-      where: { brandId_name: { brandId: samsung.id, name: m } },
-      update: {},
-      create: { name: m, brandId: samsung.id },
-    });
+  async function upsertBrand(name: string) {
+    return await prisma.brand.findFirst({ where: { name, deletedAt: null } })
+      ?? await prisma.brand.create({ data: { name } });
+  }
+  async function upsertModel(brandId: string, name: string) {
+    return await prisma.phoneModel.findFirst({ where: { brandId, name, deletedAt: null } })
+      ?? await prisma.phoneModel.create({ data: { name, brandId } });
   }
 
-  const redmi = await prisma.brand.upsert({
-    where: { name: "Redmi" },
-    update: {},
-    create: { name: "Redmi" },
-  });
-  const redmiModels = ["Note 12", "Note 11", "Note 10", "Note 9", "12C", "10C", "9C", "A2"];
-  for (const m of redmiModels) {
-    await prisma.phoneModel.upsert({
-      where: { brandId_name: { brandId: redmi.id, name: m } },
-      update: {},
-      create: { name: m, brandId: redmi.id },
-    });
-  }
+  const samsung = await upsertBrand("Samsung");
+  for (const m of ["A54", "A34", "A14", "A04", "S23", "S22", "S21", "A52", "A72", "M14"])
+    await upsertModel(samsung.id, m);
 
-  const iphone = await prisma.brand.upsert({
-    where: { name: "iPhone" },
-    update: {},
-    create: { name: "iPhone" },
-  });
-  const iphoneModels = ["15 Pro Max", "15 Pro", "15", "14 Pro Max", "14 Pro", "14", "13", "12", "11", "XR"];
-  for (const m of iphoneModels) {
-    await prisma.phoneModel.upsert({
-      where: { brandId_name: { brandId: iphone.id, name: m } },
-      update: {},
-      create: { name: m, brandId: iphone.id },
-    });
-  }
+  const redmi = await upsertBrand("Redmi");
+  for (const m of ["Note 12", "Note 11", "Note 10", "Note 9", "12C", "10C", "9C", "A2"])
+    await upsertModel(redmi.id, m);
 
-  const oppo = await prisma.brand.upsert({
-    where: { name: "Oppo" },
-    update: {},
-    create: { name: "Oppo" },
-  });
-  for (const m of ["A78", "A58", "A38", "A18", "Reno 8"]) {
-    await prisma.phoneModel.upsert({
-      where: { brandId_name: { brandId: oppo.id, name: m } },
-      update: {},
-      create: { name: m, brandId: oppo.id },
-    });
-  }
+  const iphone = await upsertBrand("iPhone");
+  for (const m of ["15 Pro Max", "15 Pro", "15", "14 Pro Max", "14 Pro", "14", "13", "12", "11", "XR"])
+    await upsertModel(iphone.id, m);
 
-  const vivo = await prisma.brand.upsert({
-    where: { name: "Vivo" },
-    update: {},
-    create: { name: "Vivo" },
-  });
-  for (const m of ["Y36", "Y27", "Y22", "Y16", "V29"]) {
-    await prisma.phoneModel.upsert({
-      where: { brandId_name: { brandId: vivo.id, name: m } },
-      update: {},
-      create: { name: m, brandId: vivo.id },
-    });
-  }
+  const oppo = await upsertBrand("Oppo");
+  for (const m of ["A78", "A58", "A38", "A18", "Reno 8"])
+    await upsertModel(oppo.id, m);
+
+  const vivo = await upsertBrand("Vivo");
+  for (const m of ["Y36", "Y27", "Y22", "Y16", "V29"])
+    await upsertModel(vivo.id, m);
 
   console.log("✓ 5 brands + models seeded");
 
