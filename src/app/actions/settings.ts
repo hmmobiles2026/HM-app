@@ -80,6 +80,56 @@ export async function recoverModel(id: string): Promise<ActionState> {
   return { success: "Model recovered." };
 }
 
+// ── Suppliers ────────────────────────────────────────────────────────────────
+
+export async function createSupplier(
+  _: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+  const name = (formData.get("name") as string)?.trim();
+  const phone = (formData.get("phone") as string)?.trim() || null;
+  const note = (formData.get("note") as string)?.trim() || null;
+  if (!name) return { error: "Name is required" };
+  try {
+    await prisma.supplier.create({ data: { name, phone, note } });
+    revalidatePath("/settings");
+    return { success: `Supplier "${name}" added.` };
+  } catch {
+    return { error: "Supplier already exists." };
+  }
+}
+
+export async function updateSupplier(
+  id: string,
+  _: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+  const name = (formData.get("name") as string)?.trim();
+  const phone = (formData.get("phone") as string)?.trim() || null;
+  const note = (formData.get("note") as string)?.trim() || null;
+  if (!name) return { error: "Name is required" };
+  try {
+    await prisma.supplier.update({ where: { id }, data: { name, phone, note } });
+    revalidatePath("/settings");
+    return { success: "Supplier updated." };
+  } catch {
+    return { error: "Supplier name already taken." };
+  }
+}
+
+export async function deleteSupplier(id: string): Promise<ActionState> {
+  await verifyRole(["ADMIN"]);
+  try {
+    await prisma.supplier.delete({ where: { id } });
+    revalidatePath("/settings");
+    return { success: "Supplier deleted." };
+  } catch {
+    return { error: "Cannot delete supplier with linked products or returns." };
+  }
+}
+
 // ── Part Brands ──────────────────────────────────────────────────────────────
 
 export async function createPartBrand(

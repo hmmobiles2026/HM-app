@@ -9,6 +9,7 @@ import { CategorySettings } from "./category-settings";
 import { UserSettings } from "./user-settings";
 import { BackupSettings } from "./backup-settings";
 import { LicenseSettings } from "./license-settings";
+import { SupplierSettings } from "./supplier-settings";
 import { PasswordSettings } from "./password-settings";
 import { SupportSettings } from "./support-settings";
 
@@ -20,7 +21,7 @@ export default async function SettingsPage() {
 
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
-  const [brands, deletedBrands, categories, users, licenseStatus] = await Promise.all([
+  const [brands, deletedBrands, categories, suppliers, users, licenseStatus] = await Promise.all([
     isAdminOrOwner
       ? prisma.brand.findMany({
           where: { deletedAt: null },
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
           orderBy: { name: "asc" },
         })
       : [],
+    isAdminOrOwner ? prisma.supplier.findMany({ orderBy: { name: "asc" } }) : [],
     isAdmin ? prisma.user.findMany({ orderBy: { name: "asc" } }) : [],
     isAdminOrOwner ? getLicenseStatus() : null,
   ]);
@@ -74,6 +76,11 @@ export default async function SettingsPage() {
           {isAdminOrOwner && (
             <TabsTrigger value="partbrands" className="text-white data-active:bg-blue-600 data-active:text-white">
               Part Brands
+            </TabsTrigger>
+          )}
+          {isAdminOrOwner && (
+            <TabsTrigger value="suppliers" className="text-white data-active:bg-blue-600 data-active:text-white">
+              Suppliers
             </TabsTrigger>
           )}
           {isAdminOrOwner && (
@@ -117,6 +124,11 @@ export default async function SettingsPage() {
         {isAdminOrOwner && (
           <TabsContent value="partbrands">
             <PartBrandSettings categories={categories} isAdmin={isAdmin} />
+          </TabsContent>
+        )}
+        {isAdminOrOwner && (
+          <TabsContent value="suppliers">
+            <SupplierSettings suppliers={suppliers} isAdmin={isAdmin} />
           </TabsContent>
         )}
         {isAdminOrOwner && (

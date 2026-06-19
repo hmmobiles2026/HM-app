@@ -13,7 +13,7 @@ export async function buildDailyReport(): Promise<string> {
   const date = slNow.toLocaleDateString("en-LK", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
 
-  const [summary, sales, lowStock, lostStock] = await Promise.all([
+  const [summary, sales, lowStock, lostStock, pendingSupplierReturns] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: { gte: slStartOfDay } },
       _sum: { totalRevenue: true, totalCost: true, profit: true },
@@ -51,6 +51,16 @@ export async function buildDailyReport(): Promise<string> {
       ORDER BY sm."createdAt" DESC
       LIMIT 10
     `,
+    prisma.saleReturn.findMany({
+      where: { returnType: "SUPPLIER_RETURN", supplierStatus: "PENDING" },
+      include: {
+        supplier: { select: { name: true } },
+        saleItem: {
+          include: { product: { select: { name: true, brand: { select: { name: true } } } } },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   const revenue = summary._sum.totalRevenue?.toNumber() ?? 0;
@@ -110,6 +120,17 @@ export async function buildDailyReport(): Promise<string> {
       }).join("\n") + "\n\n"
     : "";
 
+  const totalPendingClaim = pendingSupplierReturns.reduce((s, r) => s + Number(r.costRecovery ?? 0), 0);
+  const supplierSection = pendingSupplierReturns.length > 0
+    ? `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🚚 *PENDING SUPPLIER CLAIMS (${pendingSupplierReturns.length})*\n` +
+      `Total: *${fmt(totalPendingClaim)}*\n` +
+      pendingSupplierReturns.map((r) => {
+        const p = r.saleItem.product;
+        return `• ${p.brand.name} — ${p.name} × ${r.quantity}  _(${r.supplier?.name ?? "?"})_  ${fmt(Number(r.costRecovery ?? 0))}`;
+      }).join("\n") + "\n\n"
+    : "";
+
   return (
     header + `\n\n` +
     `💵 Revenue:  *${fmt(revenue)}*\n` +
@@ -122,6 +143,7 @@ export async function buildDailyReport(): Promise<string> {
     `⚠️ *LOW STOCK*\n` +
     `${lowLines}\n\n` +
     lostSection +
+    supplierSection +
     `━━━━━━━━━━━━━━━━━━━━`
   );
 }

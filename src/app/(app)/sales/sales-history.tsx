@@ -33,7 +33,8 @@ type Sale = {
   items: SaleItem[];
 };
 
-type Props = { sales: Sale[]; showFinancials: boolean };
+type Supplier = { id: string; name: string };
+type Props = { sales: Sale[]; showFinancials: boolean; suppliers: Supplier[] };
 
 function lkr(n: number) {
   return `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2 })}`;
@@ -53,7 +54,7 @@ const gradeLabel: Record<string, string> = {
   OTHER: "Other",
 };
 
-function SaleRow({ sale, showFinancials }: { sale: Sale; showFinancials: boolean }) {
+function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancials: boolean; suppliers: { id: string; name: string }[] }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -169,6 +170,7 @@ function SaleRow({ sale, showFinancials }: { sale: Sale; showFinancials: boolean
                           saleItemId={item.id}
                           maxQty={item.quantity - item.returnedQty}
                           productName={item.product.name}
+                          suppliers={suppliers}
                         />
                       </td>
                     </tr>
@@ -216,7 +218,7 @@ function SaleRow({ sale, showFinancials }: { sale: Sale; showFinancials: boolean
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-white tabular-nums">{lkr(Number(item.unitPrice) * item.quantity)}</p>
-                      <ReturnButton saleItemId={item.id} maxQty={item.quantity - item.returnedQty} productName={item.product.name} />
+                      <ReturnButton saleItemId={item.id} maxQty={item.quantity - item.returnedQty} productName={item.product.name} suppliers={suppliers} />
                     </div>
                   </div>
                 </div>
@@ -232,7 +234,7 @@ function SaleRow({ sale, showFinancials }: { sale: Sale; showFinancials: boolean
   );
 }
 
-export function SalesHistory({ sales, showFinancials }: Props) {
+export function SalesHistory({ sales, showFinancials, suppliers }: Props) {
   if (sales.length === 0) {
     return (
       <div className="flex flex-col items-center py-16 text-slate-500">
@@ -255,7 +257,7 @@ export function SalesHistory({ sales, showFinancials }: Props) {
       </div>
 
       {sales.map((sale) => (
-        <SaleRow key={sale.id} sale={sale} showFinancials={showFinancials} />
+        <SaleRow key={sale.id} sale={sale} showFinancials={showFinancials} suppliers={suppliers} />
       ))}
     </div>
   );

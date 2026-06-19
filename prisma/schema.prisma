@@ -43,6 +43,19 @@ model RefreshToken {
   @@index([userId])
 }
 
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  phone     String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  products Product[]
+  returns  SaleReturn[]
+}
+
 // ─── Product Catalog ─────────────────────────────────────────────────────────
 
 model Category {
@@ -114,6 +127,8 @@ model Product {
   brandId         String
   model           PhoneModel?  @relation(fields: [modelId], references: [id])
   modelId         String?
+  supplier        Supplier?    @relation(fields: [supplierId], references: [id])
+  supplierId      String?
   qualityGrade    QualityGrade @default(ORIGINAL)
   costPrice       Decimal      @db.Decimal(10, 2)
   sellingPrice    Decimal      @db.Decimal(10, 2)
@@ -193,16 +208,33 @@ model SaleItem {
   @@index([saleId])
 }
 
+enum ReturnType {
+  STOCK_BACK
+  SUPPLIER_RETURN
+}
+
+enum SupplierReturnStatus {
+  PENDING
+  RESOLVED
+}
+
 model SaleReturn {
-  id           String   @id @default(cuid())
-  saleItem     SaleItem @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
-  saleItemId   String
-  quantity     Int
-  reason       String?
-  refundAmount Decimal  @db.Decimal(10, 2)
-  createdAt    DateTime @default(now())
+  id             String                @id @default(cuid())
+  saleItem       SaleItem              @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  saleItemId     String
+  quantity       Int
+  reason         String
+  refundAmount   Decimal               @db.Decimal(10, 2)
+  returnType     ReturnType            @default(STOCK_BACK)
+  supplier       Supplier?             @relation(fields: [supplierId], references: [id])
+  supplierId     String?
+  costRecovery   Decimal?              @db.Decimal(10, 2)
+  supplierStatus SupplierReturnStatus?
+  resolvedAt     DateTime?
+  createdAt      DateTime              @default(now())
 
   @@index([saleItemId])
+  @@index([supplierId])
 }
 
 // ─── Licensing ───────────────────────────────────────────────────────────────

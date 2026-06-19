@@ -169,6 +169,10 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
 
   if (["/lowstock", "lowstock", "low", "l"].includes(t)) return buildLowStockMessage(canViewFinancials);
 
+  if (canViewFinancials && ["/suppliers", "suppliers", "sup"].includes(t)) return buildSupplierReturnsMessage();
+  else if (!canViewFinancials && ["/suppliers", "suppliers", "sup"].includes(t))
+    return "🚫 Supplier returns are only available to Owner / Admin.";
+
   // price/p is now just an alias for stock search (prices always shown)
   if (t.startsWith("price ") || t.startsWith("/price ") || t.startsWith("p "))
     return buildStockMessage(text.replace(/^\/?(price|p)\s+/i, "").trim(), canViewFinancials);
@@ -197,7 +201,9 @@ function buildHelpMessage(canViewFinancials: boolean): string {
       `• report · r — _Full today's report (sales + low stock)_\n` +
       `• today · t — _Quick today's totals_\n` +
       `• week · w — _This week's totals_\n` +
-      `• month · m — _This month's totals_\n\n`
+      `• month · m — _This month's totals_\n\n` +
+      `🚚 *Supplier Returns*\n` +
+      `• suppliers · sup — _Pending & resolved supplier claims_\n\n`
     : "";
 
   const priceNote = canViewFinancials
@@ -375,4 +381,48 @@ async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
     lines.join("\n\n")
   );
+}
+
+async function buildSupplierReturnsMessage(): Promise<string> {
+  const returns = await prisma.saleReturn.findMany({
+    where: { returnType: "SUPPLIER_RETURN" },
+    include: {
+      supplier: { select: { name: true } },
+      saleItem: {
+        include: {
+          product: { select: { name: true, brand: { select: { name: true } }, model: { select: { name: true } } } },
+        },
+      },
+    },
+    orderBy: [{ supplierStatus: "asc" }, { createdAt: "desc" }],
+  });
+
+  if (returns.length === 0) return `📦 *No supplier returns recorded.*`;
+
+  const pending = returns.filter((r) => r.supplierStatus === "PENDING");
+  const resolved = returns.filter((r) => r.supplierStatus === "RESOLVED");
+  const totalPending = pending.reduce((s, r) => s + Number(r.costRecovery ?? 0), 0);
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
+
+  let msg = `🚚 *Supplier Returns*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  if (pending.length > 0) {
+    msg += `⏳ *Pending (${pending.length}) — ${fmt(totalPending)} to recover*\n\n`;
+    for (const r of pending) {
+      const p = r.saleItem.product;
+      const label = [p.brand.name, p.model?.name, p.name].filter(Boolean).join(" ");
+      msg += `🔸 *${label}*\n   Qty: ${r.quantity}  |  Claim: ${fmt(Number(r.costRecovery ?? 0))}\n   Supplier: ${r.supplier?.name ?? "—"}\n   Reason: ${r.reason}\n\n`;
+    }
+  }
+
+  if (resolved.length > 0) {
+    msg += `✅ *Resolved (${resolved.length})*\n\n`;
+    for (const r of resolved) {
+      const p = r.saleItem.product;
+      const label = [p.brand.name, p.model?.name, p.name].filter(Boolean).join(" ");
+      msg += `✔️ ${label} × ${r.quantity} — ${r.supplier?.name ?? "—"}\n`;
+    }
+  }
+
+  return msg.trim();
 }

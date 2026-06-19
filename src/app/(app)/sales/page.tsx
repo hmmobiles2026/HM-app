@@ -2,13 +2,16 @@
 import { prisma } from "@/lib/prisma";
 import { QuickSaleForm } from "./quick-sale-form";
 import { SalesHistory } from "./sales-history";
+import { SupplierReturnsView } from "./supplier-returns-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function SalesPage() {
   const session = await verifySession();
   const showFinancials = session.role !== "SELLER";
 
-  const [rawProducts, rawSales] = await Promise.all([
+  const isAdminOrOwner = session.role !== "SELLER";
+
+  const [rawProducts, rawSales, suppliers, supplierReturns] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, stockQty: { gt: 0 } },
       include: { brand: true, model: true, category: true, partBrand: true },
@@ -37,6 +40,28 @@ export default async function SalesPage() {
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
+    prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    isAdminOrOwner
+      ? prisma.saleReturn.findMany({
+          where: { returnType: "SUPPLIER_RETURN" },
+          include: {
+            supplier: { select: { name: true } },
+            saleItem: {
+              include: {
+                product: {
+                  select: {
+                    name: true,
+                    brand: { select: { name: true } },
+                    model: { select: { name: true } },
+                  },
+                },
+                sale: { select: { id: true, createdAt: true } },
+              },
+            },
+          },
+          orderBy: [{ supplierStatus: "asc" }, { createdAt: "desc" }],
+        })
+      : [],
   ]);
 
   const products = rawProducts.map((p) => ({
@@ -44,6 +69,14 @@ export default async function SalesPage() {
     costPrice: p.costPrice.toNumber(),
     sellingPrice: p.sellingPrice.toNumber(),
   }));
+
+  const returns = Array.isArray(supplierReturns)
+    ? supplierReturns.map((r) => ({
+        ...r,
+        costRecovery: r.costRecovery ? r.costRecovery.toNumber() : null,
+        refundAmount: r.refundAmount.toNumber(),
+      }))
+    : [];
 
   const sales = rawSales.map((s) => ({
     ...s,
@@ -70,13 +103,23 @@ export default async function SalesPage() {
           <TabsTrigger value="history" className="text-white data-active:bg-blue-600 data-active:text-white">
             History
           </TabsTrigger>
+          {isAdminOrOwner && (
+            <TabsTrigger value="supplier-returns" className="text-white data-active:bg-amber-600 data-active:text-white">
+              Supplier Returns
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="new">
           <QuickSaleForm products={products} />
         </TabsContent>
         <TabsContent value="history">
-          <SalesHistory sales={sales} showFinancials={showFinancials} />
+          <SalesHistory sales={sales} showFinancials={showFinancials} suppliers={suppliers} />
         </TabsContent>
+        {isAdminOrOwner && (
+          <TabsContent value="supplier-returns">
+            <SupplierReturnsView returns={returns} isAdmin={session.role === "ADMIN"} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
