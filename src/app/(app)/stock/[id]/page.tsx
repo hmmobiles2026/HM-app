@@ -123,7 +123,7 @@ export default async function ProductDetailPage({
         )}
         {canEdit && (
           <TabsContent value="stock-in">
-            <StockInForm productId={product.id} />
+            <StockInForm productId={product.id} suppliers={suppliers} />
           </TabsContent>
         )}
         <TabsContent value="history">

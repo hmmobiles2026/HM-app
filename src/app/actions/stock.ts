@@ -188,6 +188,7 @@ export async function updateProduct(
 const StockInSchema = z.object({
   quantity: z.coerce.number().int().positive(),
   note: z.string().optional(),
+  supplierId: z.string().optional(),
 });
 
 export async function addStock(
@@ -201,12 +202,12 @@ export async function addStock(
   const parsed = StockInSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
 
-  const { quantity, note } = parsed.data;
+  const { quantity, note, supplierId } = parsed.data;
 
   const [, product, user] = await Promise.all([
     prisma.$transaction([
       prisma.stockMovement.create({
-        data: { productId, type: "IN", quantity, note: note || null, userId: session.userId },
+        data: { productId, type: "IN", quantity, note: note || null, userId: session.userId, ...(supplierId ? { supplier: { connect: { id: supplierId } } } : {}) },
       }),
       prisma.product.update({
         where: { id: productId },
@@ -245,6 +246,7 @@ export async function addStockBulk(
   if (session.role === "SELLER") return { error: "Unauthorized" };
 
   const note = (formData.get("note") as string | null) || null;
+  const supplierId = (formData.get("supplierId") as string | null) || null;
 
   const items: { productId: string; quantity: number }[] = [];
   let i = 0;
@@ -264,7 +266,7 @@ export async function addStockBulk(
     prisma.$transaction(
       items.flatMap(({ productId, quantity }) => [
         prisma.stockMovement.create({
-          data: { productId, type: "IN", quantity, note, userId: session.userId },
+          data: { productId, type: "IN", quantity, note, userId: session.userId, ...(supplierId ? { supplier: { connect: { id: supplierId } } } : {}) },
         }),
         prisma.product.update({
           where: { id: productId },

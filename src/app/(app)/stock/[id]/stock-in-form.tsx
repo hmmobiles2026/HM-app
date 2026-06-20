@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function StockInForm({ productId }: { productId: string }) {
+type Supplier = { id: string; name: string };
+
+export function StockInForm({ productId, suppliers }: { productId: string; suppliers: Supplier[] }) {
   const action = addStock.bind(null, productId);
   const [state, formAction, pending] = useActionState(action, undefined);
 
@@ -26,6 +28,23 @@ export function StockInForm({ productId }: { productId: string }) {
           <p className="text-xs text-red-400">{state.errors.quantity[0]}</p>
         )}
       </div>
+
+      {suppliers.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-slate-300">Supplier <span className="text-slate-500 font-normal">(optional)</span></Label>
+          <select
+            name="supplierId"
+            defaultValue=""
+            className="w-full h-11 bg-slate-900 border border-slate-700 text-white text-sm rounded-xl px-3"
+          >
+            <option value="">No supplier</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <Label className="text-slate-300">Note (optional)</Label>
         <Input

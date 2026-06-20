@@ -16,6 +16,7 @@ type ProductRow = Omit<Product, "costPrice" | "sellingPrice"> & {
   model: PhoneModel | null;
 };
 
+type Supplier = { id: string; name: string };
 type RestockItem = { product: ProductRow; quantity: number };
 
 const gradeLabel: Record<string, string> = {
@@ -32,7 +33,7 @@ const gradeBadge: Record<string, string> = {
   OTHER: "bg-slate-500/20 text-slate-300",
 };
 
-export function BulkStockInForm({ products }: { products: ProductRow[] }) {
+export function BulkStockInForm({ products, suppliers }: { products: ProductRow[]; suppliers: Supplier[] }) {
   const [list, setList] = useState<RestockItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [state, formAction, pending] = useActionState(addStockBulk, undefined);
@@ -153,6 +154,23 @@ export function BulkStockInForm({ products }: { products: ProductRow[] }) {
               </button>
             </div>
           ))}
+
+          {/* Supplier */}
+          {suppliers.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-slate-300 text-sm">Supplier <span className="text-slate-500 font-normal">(optional)</span></Label>
+              <select
+                name="supplierId"
+                defaultValue=""
+                className="w-full h-11 bg-slate-900 border border-slate-700 text-white text-sm rounded-xl px-3"
+              >
+                <option value="">No supplier</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Note + submit */}
           <div className="space-y-1.5">

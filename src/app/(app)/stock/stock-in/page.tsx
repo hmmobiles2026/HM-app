@@ -7,11 +7,14 @@ import { ChevronLeft } from "lucide-react";
 export default async function BulkStockInPage() {
   await verifyRole(["ADMIN", "OWNER"]);
 
-  const rawProducts = await prisma.product.findMany({
-    where: { isActive: true },
-    include: { brand: true, model: true },
-    orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
-  });
+  const [rawProducts, suppliers] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      include: { brand: true, model: true },
+      orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
+    }),
+    prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+  ]);
 
   const products = rawProducts.map((p) => ({
     ...p,
@@ -33,7 +36,7 @@ export default async function BulkStockInPage() {
         <p className="text-slate-400 text-sm mt-0.5">Add incoming stock across multiple products at once</p>
       </div>
 
-      <BulkStockInForm products={products} />
+      <BulkStockInForm products={products} suppliers={suppliers} />
     </div>
   );
 }
