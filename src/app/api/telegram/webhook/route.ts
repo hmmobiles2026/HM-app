@@ -299,10 +299,16 @@ async function buildSummaryMessage(text: string): Promise<string> {
   let label: string;
 
   if (text.includes("week") || text === "w") {
-    start = new Date(now);
-    start.setDate(now.getDate() - now.getDay() + 1);
-    start.setHours(0, 0, 0, 0);
-    label = "This Week";
+    // Week starts Friday 00:00 Sri Lanka time (UTC+5:30 = Thursday 18:30 UTC)
+    const SL_OFFSET = 5.5 * 60 * 60 * 1000;
+    const nowSL = new Date(now.getTime() + SL_OFFSET);
+    const slDay = nowSL.getUTCDay(); // 0=Sun … 5=Fri, 6=Sat
+    const daysSinceFriday = (slDay - 5 + 7) % 7;
+    const fridaySL = new Date(nowSL);
+    fridaySL.setUTCDate(nowSL.getUTCDate() - daysSinceFriday);
+    fridaySL.setUTCHours(0, 0, 0, 0);
+    start = new Date(fridaySL.getTime() - SL_OFFSET);
+    label = "This Week (Fri–Thu)";
   } else if (text.includes("month") || text === "m") {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
     label = "This Month";

@@ -19,7 +19,7 @@ import {
 async function getAnalyticsData() {
   const now = new Date();
   const thirtyDaysAgo = subDays(startOfDay(now), 29);
-  const twelveWeeksAgo = startOfWeek(subWeeks(now, 11), { weekStartsOn: 1 });
+  const twelveWeeksAgo = startOfWeek(subWeeks(now, 11), { weekStartsOn: 5 });
   const twelveMonthsAgo = startOfMonth(subMonths(now, 11));
 
   const [sales, topProducts, brandSales] = await Promise.all([
@@ -84,7 +84,7 @@ async function getAnalyticsData() {
   // Weekly data (last 12 weeks)
   const weeks = eachWeekOfInterval(
     { start: twelveWeeksAgo, end: now },
-    { weekStartsOn: 1 }
+    { weekStartsOn: 5 }
   );
   const weeklyData = weeks.map((weekStart) => {
     const weekEnd = new Date(weekStart);
