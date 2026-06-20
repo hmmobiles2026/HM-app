@@ -53,6 +53,7 @@ export default async function SalesPage() {
                     name: true,
                     brand: { select: { name: true } },
                     model: { select: { name: true } },
+                    partBrand: { select: { name: true } },
                   },
                 },
                 sale: { select: { id: true, createdAt: true } },

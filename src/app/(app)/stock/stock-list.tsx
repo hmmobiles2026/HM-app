@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Search, Edit2, PlusCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { Search, Edit2, PlusCircle, AlertTriangle, Trash2, Package } from "lucide-react";
 import { deleteProduct } from "@/app/actions/stock";
 import { toast } from "sonner";
 import type { Product, Brand, Category, PhoneModel, PartBrand } from "@/generated/prisma/client";
@@ -50,11 +50,27 @@ const gradeLabel: Record<string, string> = {
 };
 
 const gradeBadge: Record<string, string> = {
-  ORIGINAL: "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30 ring-1",
-  COPY_A: "bg-blue-500/20 text-blue-300 ring-blue-500/30 ring-1",
-  COPY_B: "bg-amber-500/20 text-amber-300 ring-amber-500/30 ring-1",
-  OTHER: "bg-slate-500/20 text-slate-300 ring-slate-500/30 ring-1",
+  ORIGINAL: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
+  COPY_A: "bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30",
+  COPY_B: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
+  OTHER: "bg-slate-500/15 text-slate-300 ring-1 ring-slate-500/30",
 };
+
+function ProductImage({ imageUrl, name, size }: { imageUrl: string | null; name: string; size: "sm" | "md" }) {
+  const dim = size === "sm" ? "h-9 w-9" : "h-14 w-14";
+  const text = size === "sm" ? "text-xs" : "text-base";
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={imageUrl} alt={name} className={`${dim} rounded-xl object-cover flex-shrink-0 bg-slate-800`} />
+    );
+  }
+  return (
+    <div className={`${dim} rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0`}>
+      <span className={`${text} font-semibold text-slate-400`}>{name.charAt(0).toUpperCase()}</span>
+    </div>
+  );
+}
 
 export function StockList({ products, brands, categories, canEdit, showCosts }: Props) {
   const [search, setSearch] = useState("");
@@ -117,11 +133,7 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
             <Button variant="outline" className="border-slate-700 text-slate-300" onClick={() => setConfirmId(null)}>
               Cancel
             </Button>
-            <Button
-              className="bg-red-600 hover:bg-red-500 text-white"
-              disabled={deleting}
-              onClick={handleDelete}
-            >
+            <Button className="bg-red-600 hover:bg-red-500 text-white" disabled={deleting} onClick={handleDelete}>
               {deleting ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
@@ -131,12 +143,12 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Search by name, brand, model, tag…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+            className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 h-10"
           />
         </div>
         <Select
@@ -144,7 +156,7 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
           onValueChange={(v) => onFilterChange("brand", v as string)}
           items={{ all: "All Brands", ...Object.fromEntries(brands.map((b) => [b.id, b.name])) }}
         >
-          <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
+          <SelectTrigger className="w-full sm:w-36 bg-slate-900 border-slate-700 text-slate-300 h-10">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-700">
@@ -159,7 +171,7 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
           onValueChange={(v) => onFilterChange("category", v as string)}
           items={{ all: "All Categories", ...Object.fromEntries(categories.map((c) => [c.id, c.name])) }}
         >
-          <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
+          <SelectTrigger className="w-full sm:w-36 bg-slate-900 border-slate-700 text-slate-300 h-10">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-700">
@@ -170,7 +182,7 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
           </SelectContent>
         </Select>
         <Select defaultValue="all" onValueChange={(v) => onFilterChange("grade", v as string)}>
-          <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-700 text-slate-300">
+          <SelectTrigger className="w-full sm:w-32 bg-slate-900 border-slate-700 text-slate-300 h-10">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-slate-900 border-slate-700">
@@ -183,45 +195,44 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
         </Select>
       </div>
 
-      {/* Table — desktop */}
-      <div className="hidden md:block rounded-xl border border-slate-800 overflow-hidden">
+      {/* ── Desktop table ─────────────────────────────────────────────────── */}
+      <div className="hidden md:block rounded-2xl border border-slate-800 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-900 border-b border-slate-800">
-              <th className="text-left px-4 py-3 text-slate-300 font-medium">Product</th>
-              <th className="text-left px-4 py-3 text-slate-300 font-medium">Grade</th>
-              <th className="text-left px-4 py-3 text-slate-300 font-medium">Category</th>
-              <th className="text-right px-4 py-3 text-slate-300 font-medium">Stock</th>
+              <th className="text-left px-4 py-3 text-slate-400 font-medium">Product</th>
+              <th className="text-left px-4 py-3 text-slate-400 font-medium">Grade</th>
+              <th className="text-left px-4 py-3 text-slate-400 font-medium">Category</th>
+              <th className="text-right px-4 py-3 text-slate-400 font-medium">Stock</th>
               {showCosts && (
-                <th className="text-right px-4 py-3 text-slate-300 font-medium">Cost</th>
+                <th className="text-right px-4 py-3 text-slate-400 font-medium">Cost</th>
               )}
-              <th className="text-right px-4 py-3 text-slate-300 font-medium">Price</th>
-              <th className="text-right px-4 py-3 text-slate-300 font-medium w-24">Actions</th>
+              <th className="text-right px-4 py-3 text-slate-400 font-medium">Price</th>
+              {canEdit && (
+                <th className="text-right px-4 py-3 text-slate-400 font-medium w-28">Actions</th>
+              )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/50">
+          <tbody className="divide-y divide-slate-800/60">
             {filtered.map((p) => {
               const isLow = p.stockQty <= p.lowStockThreshold;
               return (
-                <tr key={p.id} className="bg-slate-950 hover:bg-slate-900 transition-colors">
+                <tr
+                  key={p.id}
+                  className={`transition-colors ${isLow ? "bg-amber-950/10 hover:bg-amber-950/20" : "bg-slate-950 hover:bg-slate-900/80"}`}
+                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      {p.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.imageUrl} alt={p.name} className="h-9 w-9 rounded-lg object-cover flex-shrink-0 bg-slate-800" />
-                      ) : (
-                        <div className="h-9 w-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0">
-                          <span className="text-slate-300 text-xs">{p.brand.name.charAt(0)}</span>
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-white font-medium">
+                      {isLow && <div className="w-1 h-8 rounded-full bg-amber-500 -ml-1 shrink-0" />}
+                      <ProductImage imageUrl={p.imageUrl} name={p.brand.name} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-white font-medium truncate">
                           {p.brand.name}{p.model ? ` ${p.model.name}` : ""} — {p.name}
                         </p>
                         {p.tags.length > 0 && (
-                          <div className="flex gap-1 mt-0.5">
+                          <div className="flex gap-1 mt-0.5 flex-wrap">
                             {p.tags.slice(0, 3).map((t) => (
-                              <span key={t} className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded">{t}</span>
+                              <span key={t} className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">{t}</span>
                             ))}
                           </div>
                         )}
@@ -234,7 +245,7 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-slate-400 text-sm">{p.category.name}</p>
+                    <p className="text-slate-300 text-sm">{p.category.name}</p>
                     {p.partBrand && (
                       <p className="text-xs text-slate-500 mt-0.5">{p.partBrand.name}</p>
                     )}
@@ -242,103 +253,152 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       {isLow && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />}
-                      <span className={isLow ? "text-amber-400 font-semibold" : "text-white"}>{p.stockQty}</span>
+                      <span className={`font-semibold ${isLow ? "text-amber-400" : "text-white"}`}>{p.stockQty}</span>
                     </div>
                   </td>
                   {showCosts && (
-                    <td className="px-4 py-3 text-right text-slate-400">
-                      {Number(p.costPrice).toLocaleString("en-LK")}
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-slate-400 text-xs">LKR</span>{" "}
+                      <span className="text-slate-300">{Number(p.costPrice).toLocaleString("en-LK")}</span>
                     </td>
                   )}
-                  <td className="px-4 py-3 text-right text-white font-medium">
-                    {Number(p.sellingPrice).toLocaleString("en-LK")}
-                  </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {canEdit && (
-                        <>
-                          <Link
-                            href={`/stock/${p.id}`}
-                            className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-white")}
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </Link>
-                          <Link
-                            href={`/stock/${p.id}?tab=stock-in`}
-                            className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-emerald-400")}
-                          >
-                            <PlusCircle className="h-3.5 w-3.5" />
-                          </Link>
-                          <button
-                            onClick={() => setConfirmId(p.id)}
-                            className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-red-400")}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
+                    <span className="text-xs text-slate-500">LKR</span>{" "}
+                    <span className="text-white font-semibold">{Number(p.sellingPrice).toLocaleString("en-LK")}</span>
                   </td>
+                  {canEdit && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href={`/stock/${p.id}`}
+                          className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-800")}
+                          title="Edit"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Link>
+                        <Link
+                          href={`/stock/${p.id}?tab=stock-in`}
+                          className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/30")}
+                          title="Add stock"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                        </Link>
+                        <button
+                          onClick={() => setConfirmId(p.id)}
+                          className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-red-950/30")}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div className="py-16 text-center text-slate-300 bg-slate-950">No products found</div>
+          <div className="py-16 text-center text-slate-500 bg-slate-950">
+            <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
+            <p className="text-sm">No products found</p>
+          </div>
         )}
       </div>
 
-      {/* Cards — mobile */}
+      {/* ── Mobile cards ──────────────────────────────────────────────────── */}
       <div className="md:hidden space-y-2">
         {filtered.map((p) => {
           const isLow = p.stockQty <= p.lowStockThreshold;
           return (
-            <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium text-sm truncate">
-                    {p.brand.name}{p.model ? ` ${p.model.name}` : ""} — {p.name}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}>
-                      {gradeLabel[p.qualityGrade]}
-                    </span>
-                    <span className="text-xs text-slate-300">
-                      {p.category.name}{p.partBrand ? ` · ${p.partBrand.name}` : ""}
-                    </span>
+            <div
+              key={p.id}
+              className={`border rounded-2xl overflow-hidden ${isLow ? "border-amber-800/50 bg-amber-950/10" : "border-slate-800 bg-slate-900"}`}
+            >
+              {isLow && <div className="h-0.5 bg-amber-500/60" />}
+              <div className="p-3">
+                {/* Main row: image + info + stock/price */}
+                <div className="flex items-start gap-3">
+                  <ProductImage imageUrl={p.imageUrl} name={p.brand.name} size="md" />
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-semibold text-sm leading-tight">
+                      {p.name}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {p.brand.name}{p.model ? ` ${p.model.name}` : ""}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${gradeBadge[p.qualityGrade]}`}>
+                        {gradeLabel[p.qualityGrade]}
+                      </span>
+                      <span className="text-xs text-slate-500">{p.category.name}</span>
+                      {p.partBrand && (
+                        <span className="text-xs text-slate-600">· {p.partBrand.name}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className={`flex items-center justify-end gap-1 ${isLow ? "text-amber-400" : "text-white"}`}>
+                      {isLow && <AlertTriangle className="h-3 w-3" />}
+                      <span className="text-base font-bold">{p.stockQty}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-none">pcs</p>
+                    <p className="text-sm font-semibold text-blue-300 mt-1">
+                      {Number(p.sellingPrice).toLocaleString("en-LK")}
+                    </p>
+                    {showCosts && (
+                      <p className="text-xs text-slate-500">
+                        Cost {Number(p.costPrice).toLocaleString("en-LK")}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className={`text-sm font-bold ${isLow ? "text-amber-400" : "text-white"}`}>
-                    {p.stockQty} pcs
-                  </p>
-                  <p className="text-xs text-blue-400">LKR {Number(p.sellingPrice).toLocaleString("en-LK")}</p>
-                </div>
+
+                {/* Tags */}
+                {p.tags.length > 0 && (
+                  <div className="flex gap-1 mt-2 flex-wrap">
+                    {p.tags.slice(0, 4).map((t) => (
+                      <span key={t} className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">{t}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {canEdit && (
+                  <div className="flex gap-2 mt-3 pt-2.5 border-t border-slate-800/60">
+                    <Link
+                      href={`/stock/${p.id}`}
+                      className={cn(buttonVariants({ size: "sm", variant: "outline" }), "flex-1 h-8 text-xs border-slate-700 text-slate-300 hover:text-white rounded-xl")}
+                    >
+                      <Edit2 className="h-3 w-3 mr-1" />
+                      Edit
+                    </Link>
+                    <Link
+                      href={`/stock/${p.id}?tab=stock-in`}
+                      className={cn(buttonVariants({ size: "sm" }), "flex-1 h-8 text-xs bg-emerald-700 hover:bg-emerald-600 rounded-xl")}
+                    >
+                      <PlusCircle className="h-3 w-3 mr-1" />
+                      Stock In
+                    </Link>
+                    <button
+                      onClick={() => setConfirmId(p.id)}
+                      className={cn(buttonVariants({ size: "sm", variant: "outline" }), "h-8 w-8 p-0 border-red-900/40 text-red-400 hover:bg-red-950/40 rounded-xl shrink-0")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
-              {canEdit && (
-                <div className="flex gap-2 mt-2 pt-2 border-t border-slate-800">
-                  <Link
-                    href={`/stock/${p.id}`}
-                    className={cn(buttonVariants({ size: "sm", variant: "outline" }), "flex-1 h-7 text-xs border-slate-700 text-slate-300")}
-                  >Edit</Link>
-                  <Link
-                    href={`/stock/${p.id}?tab=stock-in`}
-                    className={cn(buttonVariants({ size: "sm" }), "flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-500")}
-                  >+ Stock</Link>
-                  <button
-                    onClick={() => setConfirmId(p.id)}
-                    className={cn(buttonVariants({ size: "sm", variant: "outline" }), "h-7 w-7 p-0 border-red-900/50 text-red-400 hover:bg-red-950")}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
             </div>
           );
         })}
         {filtered.length === 0 && (
-          <p className="text-center text-slate-300 py-12">No products found</p>
+          <div className="flex flex-col items-center py-16 text-slate-500">
+            <Package className="h-8 w-8 mb-2 opacity-20" />
+            <p className="text-sm">No products found</p>
+          </div>
         )}
       </div>
     </div>
