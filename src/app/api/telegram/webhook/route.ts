@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
 
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 
 export async function POST(req: NextRequest) {
@@ -86,6 +86,8 @@ async function routeMessage(
     return { reply: "👋 Logged out. Send your password to log in again.", deleteInput: false };
   }
 
+  const sessionExpired = !!session && session.expiresAt <= now;
+
   if (!isAuthenticated) {
     if (["/start", "/help"].includes(text.toLowerCase())) {
       return { reply: "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:", deleteInput: false };
@@ -94,7 +96,10 @@ async function routeMessage(
       const reply = await tryAuthenticate(chatId, text, now);
       return { reply, deleteInput: true };
     }
-    return { reply: "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:", deleteInput: false };
+    const prompt = sessionExpired
+      ? "🔒 *Session expired.* Send your password to log in again:"
+      : "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:";
+    return { reply: prompt, deleteInput: false };
   }
 
   const canViewFinancials = session.role === "OWNER" || session.role === "ADMIN";
