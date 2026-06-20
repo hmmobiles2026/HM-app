@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { sendTelegramMessage } from "@/lib/telegram";
+import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -74,7 +74,7 @@ async function routeMessage(
   chatId: string,
   text: string,
   _messageId: number,
-  _botToken: string
+  botToken: string
 ): Promise<{ reply: string | null; deleteInput: boolean }> {
   const now = new Date();
   const session = await prisma.telegramSession.findUnique({ where: { chatId } });
@@ -98,7 +98,7 @@ async function routeMessage(
   }
 
   const canViewFinancials = session.role === "OWNER" || session.role === "ADMIN";
-  const reply = await handleBotMessage(text, canViewFinancials);
+  const reply = await handleBotMessage(text, canViewFinancials, session.role, botToken, chatId);
   return { reply, deleteInput: false };
 }
 
@@ -150,7 +150,13 @@ async function deleteTelegramMessage(token: string, chatId: string, messageId: n
   });
 }
 
-async function handleBotMessage(text: string, canViewFinancials: boolean): Promise<string | null> {
+async function handleBotMessage(
+  text: string,
+  canViewFinancials: boolean,
+  role: string,
+  botToken: string,
+  chatId: string
+): Promise<string | null> {
   const t = text.toLowerCase();
 
   if (["/start", "/help", "help", "hi", "hello", "hey"].includes(t)) {
@@ -163,7 +169,14 @@ async function handleBotMessage(text: string, canViewFinancials: boolean): Promi
     if (["month", "/month", "m"].includes(t)) return buildSummaryMessage("month");
     if (t.startsWith("/summary") || t.startsWith("summary")) return buildSummaryMessage(t);
     if (["report", "/report", "r"].includes(t)) return buildDailyReport();
-  } else if (["today", "/today", "week", "/week", "month", "/month", "t", "w", "m", "report", "/report", "r"].includes(t)) {
+    if (["backup", "/backup", "bk"].includes(t)) {
+      if (role === "ADMIN") {
+        await sendFullBackupFile(botToken, chatId);
+        return null; // file already sent
+      }
+      return await buildBackupSummary();
+    }
+  } else if (["today", "/today", "week", "/week", "month", "/month", "t", "w", "m", "report", "/report", "r", "backup", "/backup", "bk"].includes(t)) {
     return "🚫 Sales summaries are only available to Owner / Admin.";
   }
 
@@ -203,7 +216,9 @@ function buildHelpMessage(canViewFinancials: boolean): string {
       `• week · w — _This week's totals_\n` +
       `• month · m — _This month's totals_\n\n` +
       `🚚 *Supplier Returns*\n` +
-      `• suppliers · sup — _Pending & resolved supplier claims_\n\n`
+      `• suppliers · sup — _Pending & resolved supplier claims_\n\n` +
+      `💾 *Backup*\n` +
+      `• backup · bk — _Business snapshot (Admin: full JSON file)_\n\n`
     : "";
 
   const priceNote = canViewFinancials
@@ -431,4 +446,74 @@ async function buildSupplierReturnsMessage(): Promise<string> {
   }
 
   return msg.trim();
+}
+
+async function sendFullBackupFile(botToken: string, chatId: string): Promise<void> {
+  const [brands, categories, products, sales, suppliers] = await Promise.all([
+    prisma.brand.findMany({ include: { models: true }, orderBy: { name: "asc" } }),
+    prisma.category.findMany({ include: { partBrands: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({
+      include: { brand: true, model: true, category: true, partBrand: true, supplier: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.sale.findMany({
+      include: { seller: { select: { name: true } }, items: { include: { product: { select: { name: true } }, returns: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+  ]);
+
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    brands,
+    categories,
+    products: products.map((p) => ({ ...p, costPrice: p.costPrice.toString(), sellingPrice: p.sellingPrice.toString() })),
+    sales: sales.map((s) => ({
+      ...s,
+      totalRevenue: s.totalRevenue.toString(),
+      totalCost: s.totalCost.toString(),
+      profit: s.profit.toString(),
+      items: s.items.map((i) => ({ ...i, unitPrice: i.unitPrice.toString(), unitCost: i.unitCost.toString() })),
+    })),
+    suppliers,
+  };
+
+  const date = new Date().toISOString().slice(0, 10);
+  const json = JSON.stringify(backup, null, 2);
+  await sendTelegramDocument(botToken, chatId, `HM-Stocks-Backup-${date}.json`, json, "application/json", `📦 Full backup — ${date}`);
+}
+
+async function buildBackupSummary(): Promise<string> {
+  const SL_OFFSET = 5.5 * 60 * 60 * 1000;
+  const now = new Date();
+  const todayStartSL = new Date(now.getTime() + SL_OFFSET);
+  todayStartSL.setUTCHours(0, 0, 0, 0);
+  const todayStart = new Date(todayStartSL.getTime() - SL_OFFSET);
+
+  const [productCount, stockTotal, lowCount, todaySales, pendingReturns] = await Promise.all([
+    prisma.product.count({ where: { isActive: true } }),
+    prisma.product.aggregate({ where: { isActive: true }, _sum: { stockQty: true } }),
+    prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) as count FROM "Product" WHERE "isActive" = true AND "stockQty" <= "lowStockThreshold"`,
+    prisma.sale.aggregate({ where: { createdAt: { gte: todayStart } }, _sum: { totalRevenue: true, profit: true }, _count: { id: true } }),
+    prisma.saleReturn.count({ where: { returnType: "SUPPLIER_RETURN", supplierStatus: "PENDING" } }),
+  ]);
+
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
+  const sl = new Date(now.getTime() + SL_OFFSET);
+  const dateStr = `${String(sl.getUTCDate()).padStart(2, "0")}/${String(sl.getUTCMonth() + 1).padStart(2, "0")}/${sl.getUTCFullYear()}`;
+
+  return (
+    `📊 *Business Snapshot — ${dateStr}*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📦 *Inventory*\n` +
+    `• SKUs: *${productCount}*\n` +
+    `• Total items: *${stockTotal._sum.stockQty ?? 0}*\n` +
+    `• Low stock alerts: *${Number(lowCount[0]?.count ?? 0)}*\n\n` +
+    `💰 *Today's Sales*\n` +
+    `• Transactions: *${todaySales._count.id}*\n` +
+    `• Revenue: *${fmt(Number(todaySales._sum.totalRevenue ?? 0))}*\n` +
+    `• Profit: *${fmt(Number(todaySales._sum.profit ?? 0))}*\n\n` +
+    (pendingReturns > 0 ? `⚠️ *${pendingReturns} pending supplier return${pendingReturns > 1 ? "s" : ""}*\n\n` : ``) +
+    `_Full file backup available to Admin only_`
+  );
 }
