@@ -75,7 +75,7 @@ const navItems: NavItem[] = [
     label: "WhatsApp",
     href: "/whatsapp",
     icon: MessageCircle,
-    roles: ["ADMIN", "OWNER"],
+    roles: ["ADMIN"],
   },
   {
     label: "Telegram",

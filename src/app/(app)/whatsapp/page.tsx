@@ -5,7 +5,7 @@ import { WhatsAppLogs } from "./whatsapp-logs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function WhatsAppPage() {
-  await verifyRole(["ADMIN", "OWNER"]);
+  await verifyRole(["ADMIN"]);
 
   const [config, logs] = await Promise.all([
     prisma.whatsAppConfig.findFirst(),
