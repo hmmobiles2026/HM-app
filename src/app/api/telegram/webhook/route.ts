@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
 
 export async function POST(req: NextRequest) {
