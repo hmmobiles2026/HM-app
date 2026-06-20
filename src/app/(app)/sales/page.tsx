@@ -96,7 +96,7 @@ export default async function SalesPage() {
       <h1 className="text-xl font-bold text-white">Sales</h1>
 
       <Tabs defaultValue="new">
-        <TabsList className="bg-slate-900 border border-slate-800">
+        <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="new" className="text-white data-active:bg-blue-600 data-active:text-white">
             New Sale
           </TabsTrigger>

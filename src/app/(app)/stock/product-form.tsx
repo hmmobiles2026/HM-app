@@ -19,6 +19,7 @@ import type {
   Category,
   PhoneModel,
   PartBrand,
+  Supplier,
   Product,
   QualityGrade,
 } from "@/generated/prisma/client";
@@ -32,16 +33,18 @@ type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   model: PhoneModel | null;
   category: Category;
   partBrand: PartBrand | null;
+  supplier: Supplier | null;
 };
 
 type Props = {
   brands: BrandWithModels[];
   categories: CategoryWithPartBrands[];
+  suppliers: Supplier[];
   product?: ProductWithRelations;
   showCosts?: boolean;
 };
 
-export function ProductForm({ brands, categories, product, showCosts = true }: Props) {
+export function ProductForm({ brands, categories, suppliers, product, showCosts = true }: Props) {
   const [selectedBrandId, setSelectedBrandId] = useState(product?.brandId ?? "");
   const [selectedCategoryId, setSelectedCategoryId] = useState(product?.categoryId ?? "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -150,6 +153,25 @@ export function ProductForm({ brands, categories, product, showCosts = true }: P
             defaultValue={product?.partBrandId ?? ""}
             placeholder="Search part brand…"
           />
+        </div>
+      )}
+
+      {/* Supplier */}
+      {suppliers.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-slate-300 text-sm font-medium">
+            Supplier <span className="text-slate-400 font-normal">(optional)</span>
+          </Label>
+          <select
+            name="supplierId"
+            defaultValue={product?.supplierId ?? ""}
+            className="w-full h-11 bg-slate-900 border border-slate-700 text-white text-sm rounded-xl px-3"
+          >
+            <option value="">No supplier</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
         </div>
       )}
 

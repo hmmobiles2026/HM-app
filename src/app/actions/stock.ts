@@ -64,6 +64,7 @@ const BaseProductSchema = z.object({
   partBrandId: z.string().optional(),
   brandId: z.string().min(1),
   modelId: z.string().optional(),
+  supplierId: z.string().optional(),
   qualityGrade: z.enum(["ORIGINAL", "COPY_A", "COPY_B", "OTHER"]),
   costPrice: z.coerce.number().positive(),
   sellingPrice: z.coerce.number().positive(),
@@ -90,7 +91,7 @@ export async function createProduct(
     return { errors: parsed.error.flatten().fieldErrors };
   }
 
-  const { tags, modelId, partBrandId, ...rest } = parsed.data;
+  const { tags, modelId, partBrandId, supplierId, ...rest } = parsed.data;
   const tagList = tags
     ? tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean)
     : [];
@@ -111,6 +112,7 @@ export async function createProduct(
       ...rest,
       modelId: modelId || null,
       partBrandId: partBrandId || null,
+      supplierId: supplierId || null,
       tags: tagList,
       imageUrl,
       imagePublicId,
@@ -134,7 +136,7 @@ export async function updateProduct(
     return { errors: parsed.error.flatten().fieldErrors };
   }
 
-  const { tags, modelId, partBrandId, ...rest } = parsed.data;
+  const { tags, modelId, partBrandId, supplierId, ...rest } = parsed.data;
   const tagList = tags
     ? tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean)
     : [];
@@ -158,7 +160,7 @@ export async function updateProduct(
 
   const updated = await prisma.product.update({
     where: { id },
-    data: { ...rest, modelId: modelId || null, partBrandId: partBrandId || null, tags: tagList, imageUrl, imagePublicId },
+    data: { ...rest, modelId: modelId || null, partBrandId: partBrandId || null, supplierId: supplierId || null, tags: tagList, imageUrl, imagePublicId },
   });
 
   // Record price history if cost or selling price changed
