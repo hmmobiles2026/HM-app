@@ -27,7 +27,7 @@ export async function createBrand(
 }
 
 export async function deleteBrand(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   const now = new Date();
   await prisma.$transaction([
     prisma.phoneModel.updateMany({ where: { brandId: id, deletedAt: null }, data: { deletedAt: now } }),
@@ -38,7 +38,7 @@ export async function deleteBrand(id: string): Promise<ActionState> {
 }
 
 export async function recoverBrand(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   await prisma.$transaction([
     prisma.phoneModel.updateMany({ where: { brandId: id, deletedAt: { not: null } }, data: { deletedAt: null } }),
     prisma.brand.update({ where: { id }, data: { deletedAt: null } }),
@@ -67,14 +67,14 @@ export async function createModel(
 }
 
 export async function deleteModel(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   await prisma.phoneModel.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath("/settings");
   return { success: "Model moved to trash. You have 3 days to recover it." };
 }
 
 export async function recoverModel(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   await prisma.phoneModel.update({ where: { id }, data: { deletedAt: null } });
   revalidatePath("/settings");
   return { success: "Model recovered." };
@@ -120,7 +120,7 @@ export async function updateSupplier(
 }
 
 export async function deleteSupplier(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   try {
     await prisma.supplier.delete({ where: { id } });
     revalidatePath("/settings");
@@ -150,14 +150,14 @@ export async function createPartBrand(
 }
 
 export async function deletePartBrand(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   await prisma.partBrand.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath("/settings");
   return { success: "Part brand moved to trash. You have 3 days to recover it." };
 }
 
 export async function recoverPartBrand(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   await prisma.partBrand.update({ where: { id }, data: { deletedAt: null } });
   revalidatePath("/settings");
   return { success: "Part brand recovered." };
@@ -182,7 +182,7 @@ export async function createCategory(
 }
 
 export async function deleteCategory(id: string): Promise<ActionState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
   await prisma.category.delete({ where: { id } });
   revalidatePath("/settings");
   return { success: "Category deleted." };

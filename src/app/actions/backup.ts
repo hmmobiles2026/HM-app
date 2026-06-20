@@ -7,7 +7,7 @@ import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 export type BackupState = { error?: string; success?: string } | undefined;
 
 export async function sendTelegramBackup(): Promise<BackupState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
 
   const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
   if (!config) return { error: "Telegram not configured. Set it up in the Telegram page first." };
@@ -68,7 +68,7 @@ export async function sendTelegramBackup(): Promise<BackupState> {
 }
 
 export async function sendTelegramFileBackup(): Promise<BackupState> {
-  await verifyRole(["ADMIN"]);
+  await verifyRole(["ADMIN", "OWNER"]);
 
   const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
   if (!config) return { error: "Telegram not configured. Set it up in the Telegram page first." };

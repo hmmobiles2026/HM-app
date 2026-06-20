@@ -2,9 +2,25 @@ import { NextResponse } from "next/server";
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 
+const SL_OFFSET = 5.5 * 60 * 60 * 1000;
+
+function slDateTime(d: Date) {
+  const sl = new Date(d.getTime() + SL_OFFSET);
+  const dd = String(sl.getUTCDate()).padStart(2, "0");
+  const mm = String(sl.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = sl.getUTCFullYear();
+  const hh = String(sl.getUTCHours()).padStart(2, "0");
+  const min = String(sl.getUTCMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
+function n(v: number) {
+  return v.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export async function GET() {
   const session = await verifySession();
-  if (session.role !== "ADMIN") {
+  if (!["ADMIN", "OWNER"].includes(session.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -13,46 +29,59 @@ export async function GET() {
       seller: { select: { name: true } },
       items: {
         include: {
-          product: { include: { brand: true, model: true } },
+          product: {
+            include: { brand: true, model: true, partBrand: true },
+          },
+          returns: { select: { quantity: true, returnType: true, refundAmount: true } },
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  const rows = [
-    ["Sale ID", "Date", "Seller", "Item Brand", "Item Model", "Item Name", "Qty", "Unit Price (LKR)", "Unit Cost (LKR)", "Total Revenue (LKR)", "Total Cost (LKR)", "Profit (LKR)", "Note"],
+  const rows: (string | number)[][] = [
+    ["Sale Ref", "Date & Time", "Seller", "Brand", "Model", "Part Name", "Part Brand", "Qty Sold", "Qty Returned", "Unit Price (LKR)", "Unit Cost (LKR)", "Line Revenue (LKR)", "Line Cost (LKR)", "Line Profit (LKR)", "Sale Total Revenue (LKR)", "Sale Total Profit (LKR)", "Note"],
   ];
 
   for (const sale of sales) {
+    const saleRef = sale.id.slice(-6).toUpperCase();
+    const dt = slDateTime(sale.createdAt);
+    const totalRev = sale.totalRevenue.toNumber();
+    const totalProfit = sale.profit.toNumber();
+    const note = sale.note ?? "";
+
     if (sale.items.length === 0) {
-      rows.push([
-        sale.id,
-        sale.createdAt.toISOString(),
-        sale.seller.name,
-        "", "", "", "", "", "",
-        sale.totalRevenue.toNumber().toString(),
-        sale.totalCost.toNumber().toString(),
-        sale.profit.toNumber().toString(),
-        sale.note ?? "",
-      ]);
+      rows.push([saleRef, dt, sale.seller.name, "", "", "", "", "", "", "", "", "", "", "", n(totalRev), n(totalProfit), note]);
     } else {
       for (const item of sale.items) {
+        const qty = item.quantity;
+        const returned = item.returns.reduce((s, r) => s + r.quantity, 0);
+        const price = item.unitPrice.toNumber();
+        const cost = item.unitCost.toNumber();
+        const lineRev = price * qty;
+        const lineCost = cost * qty;
+        const p = item.product;
+        const partLabel = [p.brand.name, p.model?.name].filter(Boolean).join(" ");
         rows.push([
-          sale.id,
-          sale.createdAt.toISOString(),
+          saleRef,
+          dt,
           sale.seller.name,
-          item.product.brand.name,
-          item.product.model?.name ?? "",
-          item.product.name,
-          item.quantity.toString(),
-          item.unitPrice.toNumber().toString(),
-          item.unitCost.toNumber().toString(),
-          sale.totalRevenue.toNumber().toString(),
-          sale.totalCost.toNumber().toString(),
-          sale.profit.toNumber().toString(),
-          sale.note ?? "",
+          p.brand.name,
+          p.model?.name ?? "",
+          p.name,
+          p.partBrand?.name ?? "",
+          qty,
+          returned > 0 ? returned : "",
+          n(price),
+          n(cost),
+          n(lineRev),
+          n(lineCost),
+          n(lineRev - lineCost),
+          n(totalRev),
+          n(totalProfit),
+          note,
         ]);
+        void partLabel;
       }
     }
   }
@@ -62,8 +91,8 @@ export async function GET() {
 
   return new Response(csv, {
     headers: {
-      "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="hm-stocks-sales-${date}.csv"`,
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="HM-Stocks-Sales-${date}.csv"`,
     },
   });
 }

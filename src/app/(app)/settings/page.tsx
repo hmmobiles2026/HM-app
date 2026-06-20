@@ -34,7 +34,7 @@ export default async function SettingsPage() {
           orderBy: { name: "asc" },
         })
       : [],
-    isAdmin
+    isAdminOrOwner
       ? prisma.brand.findMany({
           where: { deletedAt: { gte: threeDaysAgo } },
           include: { models: { orderBy: { name: "asc" } } },
@@ -93,7 +93,7 @@ export default async function SettingsPage() {
               Users
             </TabsTrigger>
           )}
-          {isAdmin && (
+          {isAdminOrOwner && (
             <TabsTrigger value="backup" className="text-white data-active:bg-blue-600 data-active:text-white">
               Backup
             </TabsTrigger>
@@ -113,27 +113,27 @@ export default async function SettingsPage() {
 
         {isAdminOrOwner && (
           <TabsContent value="brands">
-            <BrandSettings brands={brands} deletedBrands={deletedBrands} isAdmin={isAdmin} />
+            <BrandSettings brands={brands} deletedBrands={deletedBrands} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
         {isAdminOrOwner && (
           <TabsContent value="models">
-            <ModelSettings brands={brands} isAdmin={isAdmin} />
+            <ModelSettings brands={brands} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
         {isAdminOrOwner && (
           <TabsContent value="partbrands">
-            <PartBrandSettings categories={categories} isAdmin={isAdmin} />
+            <PartBrandSettings categories={categories} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
         {isAdminOrOwner && (
           <TabsContent value="suppliers">
-            <SupplierSettings suppliers={suppliers} isAdmin={isAdmin} />
+            <SupplierSettings suppliers={suppliers} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
         {isAdminOrOwner && (
           <TabsContent value="categories">
-            <CategorySettings categories={categories} isAdmin={isAdmin} />
+            <CategorySettings categories={categories} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
         {isAdmin && (
@@ -141,7 +141,7 @@ export default async function SettingsPage() {
             <UserSettings users={users} />
           </TabsContent>
         )}
-        {isAdmin && (
+        {isAdminOrOwner && (
           <TabsContent value="backup">
             <BackupSettings />
           </TabsContent>
