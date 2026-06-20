@@ -118,7 +118,7 @@ export default async function SalesPage() {
         </TabsContent>
         {isAdminOrOwner && (
           <TabsContent value="supplier-returns">
-            <SupplierReturnsView returns={returns} isAdmin={session.role === "ADMIN"} />
+            <SupplierReturnsView returns={returns} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
       </Tabs>
