@@ -1,17 +1,7 @@
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getLicenseStatus } from "@/lib/license";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BrandSettings } from "./brand-settings";
-import { ModelSettings } from "./model-settings";
-import { PartBrandSettings } from "./part-brand-settings";
-import { CategorySettings } from "./category-settings";
-import { UserSettings } from "./user-settings";
-import { BackupSettings } from "./backup-settings";
-import { LicenseSettings } from "./license-settings";
-import { SupplierSettings } from "./supplier-settings";
-import { PasswordSettings } from "./password-settings";
-import { SupportSettings } from "./support-settings";
+import { SettingsLayout } from "./settings-layout";
 
 export default async function SettingsPage() {
   const session = await verifySession();
@@ -58,106 +48,18 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <h1 className="text-xl font-bold text-white">Settings</h1>
-
-      <Tabs defaultValue={isAdminOrOwner ? "brands" : "password"}>
-        <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto gap-1 p-1">
-          {isAdminOrOwner && (
-            <TabsTrigger value="brands" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Brands
-            </TabsTrigger>
-          )}
-          {isAdminOrOwner && (
-            <TabsTrigger value="models" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Models
-            </TabsTrigger>
-          )}
-          {isAdminOrOwner && (
-            <TabsTrigger value="partbrands" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Part Brands
-            </TabsTrigger>
-          )}
-          {isAdminOrOwner && (
-            <TabsTrigger value="suppliers" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Suppliers
-            </TabsTrigger>
-          )}
-          {isAdminOrOwner && (
-            <TabsTrigger value="categories" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Categories
-            </TabsTrigger>
-          )}
-          {isAdmin && (
-            <TabsTrigger value="users" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Users
-            </TabsTrigger>
-          )}
-          {isAdminOrOwner && (
-            <TabsTrigger value="backup" className="text-white data-active:bg-blue-600 data-active:text-white">
-              Backup
-            </TabsTrigger>
-          )}
-          {isAdminOrOwner && (
-            <TabsTrigger value="license" className="text-white data-active:bg-blue-600 data-active:text-white">
-              License
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="password" className="text-white data-active:bg-blue-600 data-active:text-white">
-            Password
-          </TabsTrigger>
-          <TabsTrigger value="support" className="text-white data-active:bg-blue-600 data-active:text-white">
-            Support
-          </TabsTrigger>
-        </TabsList>
-
-        {isAdminOrOwner && (
-          <TabsContent value="brands">
-            <BrandSettings brands={brands} deletedBrands={deletedBrands} isAdmin={isAdminOrOwner} />
-          </TabsContent>
-        )}
-        {isAdminOrOwner && (
-          <TabsContent value="models">
-            <ModelSettings brands={brands} isAdmin={isAdminOrOwner} />
-          </TabsContent>
-        )}
-        {isAdminOrOwner && (
-          <TabsContent value="partbrands">
-            <PartBrandSettings categories={categories} isAdmin={isAdminOrOwner} />
-          </TabsContent>
-        )}
-        {isAdminOrOwner && (
-          <TabsContent value="suppliers">
-            <SupplierSettings suppliers={suppliers} isAdmin={isAdminOrOwner} />
-          </TabsContent>
-        )}
-        {isAdminOrOwner && (
-          <TabsContent value="categories">
-            <CategorySettings categories={categories} isAdmin={isAdminOrOwner} />
-          </TabsContent>
-        )}
-        {isAdmin && (
-          <TabsContent value="users">
-            <UserSettings users={users} />
-          </TabsContent>
-        )}
-        {isAdminOrOwner && (
-          <TabsContent value="backup">
-            <BackupSettings />
-          </TabsContent>
-        )}
-        {isAdminOrOwner && licenseStatus && (
-          <TabsContent value="license">
-            <LicenseSettings status={licenseStatus} isAdmin={isAdmin} />
-          </TabsContent>
-        )}
-        <TabsContent value="password">
-          <PasswordSettings />
-        </TabsContent>
-        <TabsContent value="support">
-          <SupportSettings />
-        </TabsContent>
-      </Tabs>
+    <div className="p-4 md:p-6">
+      <h1 className="text-xl font-bold text-white mb-5">Settings</h1>
+      <SettingsLayout
+        brands={brands}
+        deletedBrands={deletedBrands}
+        categories={categories}
+        suppliers={suppliers}
+        users={users}
+        licenseStatus={licenseStatus}
+        isAdmin={isAdmin}
+        isAdminOrOwner={isAdminOrOwner}
+      />
     </div>
   );
 }
