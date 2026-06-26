@@ -39,6 +39,7 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
       const brandName = col(row, "brand");
       const modelName = col(row, "model");
       const categoryName = col(row, "category");
+      const partBrandName = col(row, "part_brand");
       const name = col(row, "name");
       const grade = col(row, "grade").toUpperCase() || "ORIGINAL";
       const costPrice = parseFloat(col(row, "cost_price") || col(row, "cost"));
@@ -73,12 +74,21 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
         modelId = model.id;
       }
 
+      let partBrandId: string | null = null;
+      if (partBrandName) {
+        const pb = await prisma.partBrand.findFirst({
+          where: { name: partBrandName, categoryId: category.id },
+        }).then(b => b ?? prisma.partBrand.create({ data: { name: partBrandName, categoryId: category.id } }));
+        partBrandId = pb.id;
+      }
+
       await prisma.product.create({
         data: {
           name,
           brandId: brand.id,
           modelId,
           categoryId: category.id,
+          partBrandId,
           qualityGrade,
           costPrice,
           sellingPrice,

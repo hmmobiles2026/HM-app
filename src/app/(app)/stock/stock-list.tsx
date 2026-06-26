@@ -205,7 +205,10 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
               <th className="text-left px-4 py-3 text-slate-400 font-medium">Category</th>
               <th className="text-right px-4 py-3 text-slate-400 font-medium">Stock</th>
               {showCosts && (
-                <th className="text-right px-4 py-3 text-slate-400 font-medium">Cost</th>
+                <>
+                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Cost</th>
+                  <th className="text-right px-4 py-3 text-slate-400 font-medium">Profit</th>
+                </>
               )}
               <th className="text-right px-4 py-3 text-slate-400 font-medium">Price</th>
               {canEdit && (
@@ -216,6 +219,9 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
           <tbody className="divide-y divide-slate-800/60">
             {filtered.map((p) => {
               const isLow = p.stockQty <= p.lowStockThreshold;
+              const profit = p.sellingPrice - p.costPrice;
+              const profitPct = p.costPrice > 0 ? (profit / p.costPrice) * 100 : null;
+              const profitColor = profit >= 0 ? "text-emerald-400" : "text-red-400";
               return (
                 <tr
                   key={p.id}
@@ -257,10 +263,22 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
                     </div>
                   </td>
                   {showCosts && (
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-slate-400 text-xs">LKR</span>{" "}
-                      <span className="text-slate-300">{Number(p.costPrice).toLocaleString("en-LK")}</span>
-                    </td>
+                    <>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-slate-400 text-xs">LKR</span>{" "}
+                        <span className="text-slate-300">{Number(p.costPrice).toLocaleString("en-LK")}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`font-semibold ${profitColor}`}>
+                          {profit.toLocaleString("en-LK")}
+                        </span>
+                        {profitPct !== null && (
+                          <span className={`text-xs ml-1.5 ${profitColor} opacity-80`}>
+                            {profitPct.toFixed(0)}%
+                          </span>
+                        )}
+                      </td>
+                    </>
                   )}
                   <td className="px-4 py-3 text-right">
                     <span className="text-xs text-slate-500">LKR</span>{" "}
@@ -310,6 +328,9 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
       <div className="md:hidden space-y-2">
         {filtered.map((p) => {
           const isLow = p.stockQty <= p.lowStockThreshold;
+          const profit = p.sellingPrice - p.costPrice;
+          const profitPct = p.costPrice > 0 ? (profit / p.costPrice) * 100 : null;
+          const profitColor = profit >= 0 ? "text-emerald-400" : "text-red-400";
           return (
             <div
               key={p.id}
@@ -349,9 +370,17 @@ export function StockList({ products, brands, categories, canEdit, showCosts }: 
                       {Number(p.sellingPrice).toLocaleString("en-LK")}
                     </p>
                     {showCosts && (
-                      <p className="text-xs text-slate-500">
-                        Cost {Number(p.costPrice).toLocaleString("en-LK")}
-                      </p>
+                      <>
+                        <p className="text-xs text-slate-500">
+                          Cost {Number(p.costPrice).toLocaleString("en-LK")}
+                        </p>
+                        <p className={`text-xs font-medium ${profitColor}`}>
+                          {profit >= 0 ? "+" : ""}{profit.toLocaleString("en-LK")}
+                          {profitPct !== null && (
+                            <span className="opacity-80"> ({profitPct.toFixed(0)}%)</span>
+                          )}
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
