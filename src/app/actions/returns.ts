@@ -78,6 +78,15 @@ export async function createReturn(
           userId: session.userId,
         },
       }),
+      // Revenue and cost both reverse; profit shrinks by the original margin on these units
+      prisma.sale.update({
+        where: { id: saleItem.sale.id },
+        data: {
+          totalRevenue: { decrement: refundAmount },
+          totalCost: { decrement: costRecovery },
+          profit: { decrement: refundAmount - costRecovery },
+        },
+      }),
     ]);
     revalidatePath("/sales");
     revalidatePath("/stock");
@@ -85,18 +94,28 @@ export async function createReturn(
   }
 
   // SUPPLIER_RETURN — stock stays out, track pending claim
-  await prisma.saleReturn.create({
-    data: {
-      saleItemId,
-      quantity,
-      reason,
-      refundAmount,
-      returnType: "SUPPLIER_RETURN",
-      supplierId: supplierId!,
-      costRecovery,
-      supplierStatus: "PENDING",
-    },
-  });
+  // Revenue reverses; cost stays (item is gone, supplier owes us costRecovery separately)
+  await prisma.$transaction([
+    prisma.saleReturn.create({
+      data: {
+        saleItemId,
+        quantity,
+        reason,
+        refundAmount,
+        returnType: "SUPPLIER_RETURN",
+        supplierId: supplierId!,
+        costRecovery,
+        supplierStatus: "PENDING",
+      },
+    }),
+    prisma.sale.update({
+      where: { id: saleItem.sale.id },
+      data: {
+        totalRevenue: { decrement: refundAmount },
+        profit: { decrement: refundAmount },
+      },
+    }),
+  ]);
 
   revalidatePath("/sales");
   return { success: `Supplier return recorded. LKR ${costRecovery.toLocaleString("en-LK")} pending from supplier.` };
