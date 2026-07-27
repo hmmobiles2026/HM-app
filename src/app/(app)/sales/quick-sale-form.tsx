@@ -211,6 +211,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                       type="number"
                       min={1}
                       value={priceInputs[item.product.id] ?? String(item.customPrice)}
+                      onFocus={(e) => e.target.select()}
                       onChange={(e) =>
                         setPriceInputs((prev) => ({ ...prev, [item.product.id]: e.target.value }))
                       }
@@ -277,6 +278,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                 <input
                   type="number"
                   value={totalInput !== "" ? totalInput : String(subtotal)}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setTotalInput(e.target.value)}
                   onBlur={(e) => {
                     const v = Number(e.target.value);
