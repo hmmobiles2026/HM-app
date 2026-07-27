@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getLicenseStatus } from "@/lib/license";
 
+function esc(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 type LowStockProduct = {
   name: string;
   stockQty: number;
@@ -26,22 +30,22 @@ export async function notifyLowStock(products: LowStockProduct[]): Promise<void>
   });
 
   const lines = products.map((p) => {
-    const partBrandSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
-    const label = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}${partBrandSuffix}`;
+    const partBrandSuffix = p.partBrand ? ` (${esc(p.partBrand.name)})` : "";
+    const label = `${esc(p.brand.name)}${p.model ? ` ${esc(p.model.name)}` : ""} — ${esc(p.name)}${partBrandSuffix}`;
     if (p.stockQty === 0) {
-      return `🔴 *OUT OF STOCK*\n📦 ${label}\n⚠️ Reorder immediately`;
+      return `🔴 <b>OUT OF STOCK</b>\n📦 ${label}\n⚠️ Reorder immediately`;
     }
     const bar = "█".repeat(Math.min(p.stockQty, 5)) + "░".repeat(Math.max(0, 5 - p.stockQty));
-    return `🟡 *${p.stockQty} unit${p.stockQty > 1 ? "s" : ""} left* \`[${bar}]\`\n📦 ${label}\n⚠️ Threshold: ${p.lowStockThreshold}`;
+    return `🟡 <b>${p.stockQty} unit${p.stockQty > 1 ? "s" : ""} left</b> <code>[${bar}]</code>\n📦 ${label}\n⚠️ Threshold: ${p.lowStockThreshold}`;
   });
 
   const text =
-    `🚨 *LOW STOCK ALERT* — HM Stocks\n` +
+    `🚨 <b>LOW STOCK ALERT</b> — HM Stocks\n` +
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
     lines.join("\n\n") +
-    `\n\n━━━━━━━━━━━━━━━━━━━━\n🕐 _${now}_`;
+    `\n\n━━━━━━━━━━━━━━━━━━━━\n🕐 <i>${now}</i>`;
 
-  await sendTelegramMessage(config.botToken, config.chatId, text).catch(() => {});
+  await sendTelegramMessage(config.botToken, config.chatId, text, "HTML").catch(() => {});
 }
 
 type StockInItem = {
@@ -73,47 +77,101 @@ export async function notifyStockIn(
   let text: string;
   if (items.length === 1) {
     const it = items[0];
-    const partSuffix = it.partBrandName ? ` (${it.partBrandName})` : "";
-    const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}${partSuffix}`;
+    const partSuffix = it.partBrandName ? ` (${esc(it.partBrandName)})` : "";
+    const label = `${esc(it.brandName)}${it.modelName ? ` ${esc(it.modelName)}` : ""} ${esc(it.productName)}${partSuffix}`;
     text =
-      `📦 *Stock In — HM Stocks*\n` +
+      `📦 <b>Stock In — HM Stocks</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `🧑 ${addedBy}\n` +
+      `🧑 ${esc(addedBy)}\n` +
       `📱 ${label}\n` +
-      `🔢 Qty: *${it.quantity}* units\n` +
-      `💵 Cost: *${fmt(it.costPrice)}* each\n` +
-      (note ? `📝 ${note}\n` : "") +
-      `\n🕐 _${time}_`;
+      `🔢 Qty: <b>${it.quantity}</b> units\n` +
+      `💵 Cost: <b>${fmt(it.costPrice)}</b> each\n` +
+      (note ? `📝 ${esc(note)}\n` : "") +
+      `\n🕐 <i>${time}</i>`;
   } else {
     const lines = items.map((it) => {
-      const partSuffix = it.partBrandName ? ` (${it.partBrandName})` : "";
-      const label = `${it.brandName}${it.modelName ? ` ${it.modelName}` : ""} ${it.productName}${partSuffix}`;
-      return `• ${label} × *${it.quantity}* @ ${fmt(it.costPrice)}`;
+      const partSuffix = it.partBrandName ? ` (${esc(it.partBrandName)})` : "";
+      const label = `${esc(it.brandName)}${it.modelName ? ` ${esc(it.modelName)}` : ""} ${esc(it.productName)}${partSuffix}`;
+      return `• ${label} × <b>${it.quantity}</b> @ ${fmt(it.costPrice)}`;
     }).join("\n");
     const totalUnits = items.reduce((s, it) => s + it.quantity, 0);
     text =
-      `📦 *Bulk Stock In — HM Stocks*\n` +
+      `📦 <b>Bulk Stock In — HM Stocks</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `🧑 ${addedBy}\n` +
+      `🧑 ${esc(addedBy)}\n` +
       `🔢 ${totalUnits} units across ${items.length} products\n\n` +
       lines + "\n" +
-      (note ? `\n📝 ${note}\n` : "") +
-      `\n🕐 _${time}_`;
+      (note ? `\n📝 ${esc(note)}\n` : "") +
+      `\n🕐 <i>${time}</i>`;
   }
 
-  await sendTelegramMessage(config.botToken, config.chatId, text).catch(() => {});
+  await sendTelegramMessage(config.botToken, config.chatId, text, "HTML").catch(() => {});
+}
+
+type SaleNotifyItem = {
+  productName: string;
+  brandName: string;
+  modelName: string | null;
+  partBrandName?: string | null;
+  quantity: number;
+  unitPrice: number;
+};
+
+export async function notifySale(
+  saleId: string,
+  sellerName: string,
+  items: SaleNotifyItem[],
+  totalRevenue: number,
+  profit: number,
+  warrantyFee?: number | null
+): Promise<void> {
+  const [license, config] = await Promise.all([
+    getLicenseStatus(),
+    prisma.telegramConfig.findFirst().catch(() => null),
+  ]);
+  if (!license.active || !config) return;
+
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
+  const time = new Date().toLocaleString("en-LK", {
+    timeZone: "Asia/Colombo",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+
+  const itemLines = items.map((it) => {
+    const partSuffix = it.partBrandName ? ` (${esc(it.partBrandName)})` : "";
+    const label = `${esc(it.brandName)}${it.modelName ? ` ${esc(it.modelName)}` : ""} ${esc(it.productName)}${partSuffix}`;
+    return `• ${label} × <b>${it.quantity}</b> @ ${fmt(it.unitPrice)}`;
+  }).join("\n");
+
+  const warrantyLine = warrantyFee && warrantyFee > 0
+    ? `🛡 Warranty: <b>${fmt(warrantyFee)}</b>\n`
+    : "";
+
+  const text =
+    `💰 <b>Sale — HM Stocks</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `🧑 ${esc(sellerName)}\n` +
+    `🆔 Ref: <code>#${saleId.slice(-8).toUpperCase()}</code>\n\n` +
+    itemLines + "\n\n" +
+    warrantyLine +
+    `💵 Total: <b>${fmt(totalRevenue)}</b>\n` +
+    `📈 Profit: <b>${fmt(profit)}</b>\n` +
+    `\n🕐 <i>${time}</i>`;
+
+  await sendTelegramMessage(config.botToken, config.chatId, text, "HTML").catch(() => {});
 }
 
 export async function sendTelegramMessage(
   token: string,
   chatId: string,
-  text: string
+  text: string,
+  parseMode: "HTML" | "Markdown" | "MarkdownV2" = "HTML"
 ): Promise<boolean> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode }),
     });
     return res.ok;
   } catch {

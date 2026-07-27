@@ -91,7 +91,9 @@ export async function deleteSession() {
   const refreshToken = store.get("refresh_token")?.value;
 
   if (refreshToken) {
-    await prisma.refreshToken.deleteMany({ where: { token: refreshToken } }).catch(() => {});
+    await prisma.refreshToken.deleteMany({ where: { token: refreshToken } }).catch((e) => {
+      console.error("logout: failed to delete refresh token", e);
+    });
   }
 
   store.delete("access_token");

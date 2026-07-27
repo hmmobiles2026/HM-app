@@ -35,7 +35,10 @@ export default async function ProductDetailPage({
     prisma.supplier.findMany({ orderBy: { name: "asc" } }),
     prisma.stockMovement.findMany({
       where: { productId: id },
-      include: { createdBy: { select: { name: true } } },
+      include: {
+        createdBy: { select: { name: true } },
+        supplier: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 30,
     }),

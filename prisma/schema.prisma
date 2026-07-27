@@ -52,8 +52,9 @@ model Supplier {
   note      String?
   createdAt DateTime @default(now())
 
-  products Product[]
-  returns  SaleReturn[]
+  products       Product[]
+  returns        SaleReturn[]
+  stockMovements StockMovement[]
 }
 
 // ─── Product Catalog ─────────────────────────────────────────────────────────
@@ -167,15 +168,17 @@ enum MovementType {
 }
 
 model StockMovement {
-  id        String       @id @default(cuid())
-  product   Product      @relation(fields: [productId], references: [id])
-  productId String
-  type      MovementType
-  quantity  Int
-  note      String?
-  createdBy User         @relation(fields: [userId], references: [id])
-  userId    String
-  createdAt DateTime     @default(now())
+  id         String       @id @default(cuid())
+  product    Product      @relation(fields: [productId], references: [id])
+  productId  String
+  type       MovementType
+  quantity   Int
+  note       String?
+  supplier   Supplier?    @relation(fields: [supplierId], references: [id])
+  supplierId String?
+  createdBy  User         @relation(fields: [userId], references: [id])
+  userId     String
+  createdAt  DateTime     @default(now())
 }
 
 // ─── Sales ───────────────────────────────────────────────────────────────────
@@ -187,6 +190,7 @@ model Sale {
   totalRevenue Decimal  @db.Decimal(10, 2)
   totalCost    Decimal  @db.Decimal(10, 2)
   profit       Decimal  @db.Decimal(10, 2)
+  warrantyFee  Decimal? @db.Decimal(10, 2)
   note         String?
   createdAt    DateTime @default(now())
 

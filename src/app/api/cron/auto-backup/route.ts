@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -129,7 +130,8 @@ export async function GET(req: Request) {
     await sendTelegramMessage(config.botToken, config.chatId,
       `⚠️ *Auto Backup Failed — HM Stocks*\n\n` +
       `Could not send backup file for ${dateLabel}.\n` +
-      `Go to Settings → Backup to download manually.`
+      `Go to Settings → Backup to download manually.`,
+      "Markdown"
     );
     return NextResponse.json({ sent: false, error: "Telegram document upload failed" });
   }

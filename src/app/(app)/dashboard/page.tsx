@@ -4,7 +4,12 @@ import { getLicenseStatus } from "@/lib/license";
 import { DashboardCards } from "./dashboard-cards";
 import { RecentSalesChart } from "./recent-sales-chart";
 import { LowStockAlert } from "./low-stock-alert";
-import { startOfDay, subDays, startOfWeek } from "date-fns";
+import { StockSnapshot } from "./stock-snapshot";
+import { TopSelling } from "./top-selling";
+import { SlowMoving } from "./slow-moving";
+import { AccountingOverview } from "./accounting-overview";
+import { PendingReturnsSummary } from "./pending-returns-summary";
+import { startOfDay, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth, subWeeks, endOfWeek } from "date-fns";
 import Link from "next/link";
 import { ShieldAlert, ShieldOff } from "lucide-react";
 
@@ -12,13 +17,31 @@ async function getDashboardData(role: string) {
   const today = startOfDay(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const thirtyDaysAgo = subDays(today, 30);
+  const thisMonthStart = startOfMonth(new Date());
+  const lastMonthStart = startOfMonth(subMonths(new Date(), 1));
+  const lastMonthEnd = endOfMonth(subMonths(new Date(), 1));
+  const lastWeekStart = startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+  const lastWeekEnd = endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 });
+  const sixMonthsAgo = startOfMonth(subMonths(new Date(), 5));
 
   const [
     todaySales,
     weekSales,
     totalProducts,
     lowStockProducts,
-    last7DaysSales,
+    last30DaysSales,
+    stockAggregate,
+    outOfStockCount,
+    stockByCategory,
+    stockByGrade,
+    inventoryValueResult,
+    topSelling,
+    slowMoving,
+    pendingReturnsAgg,
+    thisMonthAgg,
+    lastMonthAgg,
+    lastWeekAgg,
+    monthlySummary,
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: { gte: today } },
@@ -28,6 +51,7 @@ async function getDashboardData(role: string) {
     prisma.sale.aggregate({
       where: { createdAt: { gte: weekStart } },
       _sum: { totalRevenue: true, profit: true },
+      _count: true,
     }),
     prisma.product.count({ where: { isActive: true } }),
     prisma.$queryRaw<
@@ -59,6 +83,99 @@ async function getDashboardData(role: string) {
       },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.product.aggregate({
+      where: { isActive: true },
+      _sum: { stockQty: true },
+    }),
+    prisma.product.count({ where: { isActive: true, stockQty: 0 } }),
+    prisma.category.findMany({
+      include: {
+        products: {
+          where: { isActive: true },
+          select: { stockQty: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.product.groupBy({
+      by: ["qualityGrade"],
+      where: { isActive: true },
+      _sum: { stockQty: true },
+      _count: { _all: true },
+    }),
+    prisma.$queryRaw<[{ totalValue: string | null }]>`
+      SELECT SUM("stockQty" * "costPrice") as "totalValue"
+      FROM "Product"
+      WHERE "isActive" = true
+    `,
+    // Top selling products (last 30 days)
+    prisma.$queryRaw<{ id: string; name: string; brandName: string; modelName: string | null; imageUrl: string | null; totalQty: number; totalRevenue: string }[]>`
+      SELECT p.id, p.name, b.name as "brandName", pm.name as "modelName", p."imageUrl",
+             SUM(si.quantity)::int as "totalQty",
+             SUM(si.quantity * si."unitPrice")::text as "totalRevenue"
+      FROM "SaleItem" si
+      JOIN "Sale" s ON s.id = si."saleId"
+      JOIN "Product" p ON p.id = si."productId"
+      JOIN "Brand" b ON b.id = p."brandId"
+      LEFT JOIN "PhoneModel" pm ON pm.id = p."modelId"
+      WHERE s."createdAt" >= ${thirtyDaysAgo}
+      GROUP BY p.id, p.name, b.name, pm.name, p."imageUrl"
+      ORDER BY "totalQty" DESC
+      LIMIT 8
+    `,
+    // Slow-moving: in stock but no sales in last 30 days
+    prisma.$queryRaw<{ id: string; name: string; brandName: string; modelName: string | null; stockQty: number; costPrice: string; qualityGrade: string }[]>`
+      SELECT p.id, p.name, b.name as "brandName", pm.name as "modelName",
+             p."stockQty", p."costPrice"::text, p."qualityGrade"
+      FROM "Product" p
+      JOIN "Brand" b ON b.id = p."brandId"
+      LEFT JOIN "PhoneModel" pm ON pm.id = p."modelId"
+      WHERE p."isActive" = true AND p."stockQty" > 0
+        AND p.id NOT IN (
+          SELECT DISTINCT si."productId"
+          FROM "SaleItem" si
+          JOIN "Sale" s ON s.id = si."saleId"
+          WHERE s."createdAt" >= ${thirtyDaysAgo}
+        )
+      ORDER BY (p."stockQty" * p."costPrice") DESC
+      LIMIT 10
+    `,
+    // Pending supplier returns
+    prisma.saleReturn.aggregate({
+      where: { returnType: "SUPPLIER_RETURN", supplierStatus: "PENDING" },
+      _count: true,
+      _sum: { costRecovery: true },
+    }),
+    // This month sales
+    prisma.sale.aggregate({
+      where: { createdAt: { gte: thisMonthStart } },
+      _sum: { totalRevenue: true, totalCost: true, profit: true },
+      _count: true,
+    }),
+    // Last month sales
+    prisma.sale.aggregate({
+      where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } },
+      _sum: { totalRevenue: true, totalCost: true, profit: true },
+      _count: true,
+    }),
+    // Last week sales (for week comparison)
+    prisma.sale.aggregate({
+      where: { createdAt: { gte: lastWeekStart, lte: lastWeekEnd } },
+      _sum: { totalRevenue: true, profit: true },
+      _count: true,
+    }),
+    // 6-month monthly P&L
+    prisma.$queryRaw<{ month: Date; revenue: string; cost: string; profit: string; count: string }[]>`
+      SELECT DATE_TRUNC('month', "createdAt") as month,
+             SUM("totalRevenue")::text as revenue,
+             SUM("totalCost")::text as cost,
+             SUM("profit")::text as profit,
+             COUNT(*)::text as count
+      FROM "Sale"
+      WHERE "createdAt" >= ${sixMonthsAgo}
+      GROUP BY DATE_TRUNC('month', "createdAt")
+      ORDER BY month ASC
+    `,
   ]);
 
   return {
@@ -78,13 +195,74 @@ async function getDashboardData(role: string) {
     },
     totalProducts,
     lowStockProducts,
-    last7DaysSales: last7DaysSales.map((s) => ({
+    last30DaysSales: last30DaysSales.map((s) => ({
       ...s,
       totalRevenue: s.totalRevenue.toNumber(),
       totalCost: s.totalCost.toNumber(),
       profit: s.profit.toNumber(),
     })),
     showFinancials: role === "ADMIN" || role === "OWNER",
+    topSelling: topSelling.map((p) => ({
+      ...p,
+      totalRevenue: Number(p.totalRevenue),
+    })),
+    slowMoving: slowMoving.map((p) => ({
+      ...p,
+      costPrice: Number(p.costPrice),
+    })),
+    pendingReturns: {
+      count: pendingReturnsAgg._count,
+      value: pendingReturnsAgg._sum.costRecovery?.toNumber() ?? 0,
+    },
+    accounting: {
+      thisMonth: {
+        revenue: thisMonthAgg._sum.totalRevenue?.toNumber() ?? 0,
+        cost: thisMonthAgg._sum.totalCost?.toNumber() ?? 0,
+        profit: thisMonthAgg._sum.profit?.toNumber() ?? 0,
+        count: thisMonthAgg._count,
+      },
+      lastMonth: {
+        revenue: lastMonthAgg._sum.totalRevenue?.toNumber() ?? 0,
+        cost: lastMonthAgg._sum.totalCost?.toNumber() ?? 0,
+        profit: lastMonthAgg._sum.profit?.toNumber() ?? 0,
+        count: lastMonthAgg._count,
+      },
+      thisWeek: {
+        revenue: weekSales._sum.totalRevenue?.toNumber() ?? 0,
+        profit: weekSales._sum.profit?.toNumber() ?? 0,
+        count: weekSales._count,
+      },
+      lastWeek: {
+        revenue: lastWeekAgg._sum.totalRevenue?.toNumber() ?? 0,
+        profit: lastWeekAgg._sum.profit?.toNumber() ?? 0,
+        count: lastWeekAgg._count,
+      },
+      monthly: monthlySummary.map((m) => ({
+        month: m.month,
+        revenue: Number(m.revenue),
+        cost: Number(m.cost),
+        profit: Number(m.profit),
+        count: Number(m.count),
+      })),
+    },
+    stockSnapshot: {
+      totalUnits: stockAggregate._sum.stockQty ?? 0,
+      outOfStock: outOfStockCount,
+      inventoryValue: Number(inventoryValueResult[0]?.totalValue ?? 0),
+      byCategory: stockByCategory
+        .map((c) => ({
+          name: c.name,
+          units: c.products.reduce((s, p) => s + p.stockQty, 0),
+          skus: c.products.length,
+        }))
+        .filter((c) => c.skus > 0)
+        .sort((a, b) => b.units - a.units),
+      byGrade: stockByGrade.map((g) => ({
+        grade: g.qualityGrade,
+        units: g._sum.stockQty ?? 0,
+        skus: g._count._all,
+      })),
+    },
   };
 }
 
@@ -146,12 +324,51 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2">
-          <RecentSalesChart sales={data.last7DaysSales} showFinancials={data.showFinancials} />
+          <RecentSalesChart sales={data.last30DaysSales} showFinancials={data.showFinancials} />
         </div>
         <div>
           <LowStockAlert products={data.lowStockProducts} />
         </div>
       </div>
+
+      <div>
+        <h2 className="text-base font-semibold text-slate-300 mb-3">Stock Snapshot</h2>
+        <StockSnapshot
+          totalUnits={data.stockSnapshot.totalUnits}
+          outOfStock={data.stockSnapshot.outOfStock}
+          inventoryValue={data.stockSnapshot.inventoryValue}
+          byCategory={data.stockSnapshot.byCategory}
+          byGrade={data.stockSnapshot.byGrade}
+          showFinancials={data.showFinancials}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-slate-300 mb-3">Top Selling (Last 30 Days)</h2>
+          <TopSelling products={data.topSelling} showFinancials={data.showFinancials} />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-slate-300 mb-3">Slow-Moving Stock</h2>
+          <SlowMoving products={data.slowMoving} showFinancials={data.showFinancials} />
+        </div>
+      </div>
+
+      {data.showFinancials && (
+        <>
+          <div>
+            <h2 className="text-base font-semibold text-slate-300 mb-3">Accounting Overview</h2>
+            <AccountingOverview accounting={data.accounting} />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-300 mb-3">Pending Supplier Returns</h2>
+            <PendingReturnsSummary
+              count={data.pendingReturns.count}
+              value={data.pendingReturns.value}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

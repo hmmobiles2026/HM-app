@@ -19,9 +19,23 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
 
   const text = await file.text();
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  function parseCSVRow(line: string): string[] {
+    const fields: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let ci = 0; ci < line.length; ci++) {
+      const ch = line[ci];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === "," && !inQuotes) { fields.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    fields.push(cur.trim());
+    return fields;
+  }
   if (lines.length < 2) return { error: "CSV must have a header row and at least one data row." };
 
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  const header = parseCSVRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
 
   const col = (row: string[], name: string): string => {
     const idx = header.indexOf(name);
@@ -32,7 +46,7 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
   const errors: { row: number; error: string }[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+    const row = parseCSVRow(lines[i]);
     const rowNum = i + 1;
 
     try {
@@ -50,15 +64,17 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
       if (!brandName) { errors.push({ row: rowNum, error: "Missing brand" }); continue; }
       if (!categoryName) { errors.push({ row: rowNum, error: "Missing category" }); continue; }
       if (!name) { errors.push({ row: rowNum, error: "Missing name" }); continue; }
-      if (isNaN(costPrice) || costPrice < 0) { errors.push({ row: rowNum, error: "Invalid cost_price" }); continue; }
-      if (isNaN(sellingPrice) || sellingPrice < 0) { errors.push({ row: rowNum, error: "Invalid selling_price" }); continue; }
+      if (isNaN(costPrice) || costPrice <= 0) { errors.push({ row: rowNum, error: "Invalid cost_price" }); continue; }
+      if (isNaN(sellingPrice) || sellingPrice <= 0) { errors.push({ row: rowNum, error: "Invalid selling_price" }); continue; }
 
       const validGrades = ["ORIGINAL", "COPY_A", "COPY_B", "OTHER"];
       const qualityGrade = validGrades.includes(grade) ? grade as "ORIGINAL" | "COPY_A" | "COPY_B" | "OTHER" : "OTHER";
 
       const [brand, category] = await Promise.all([
         prisma.brand.findFirst({ where: { name: brandName, deletedAt: null } })
-          .then(b => b ?? prisma.brand.create({ data: { name: brandName } })),
+          .then(b => b ?? prisma.brand.create({ data: { name: brandName } }).catch(async () =>
+            (await prisma.brand.findFirst({ where: { name: brandName, deletedAt: null } }))!
+          )),
         prisma.category.upsert({
           where: { name: categoryName },
           create: { name: categoryName },
@@ -82,7 +98,8 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
         partBrandId = pb.id;
       }
 
-      await prisma.product.create({
+      const finalQty = isNaN(stockQty) ? 0 : stockQty;
+      const product = await prisma.product.create({
         data: {
           name,
           brandId: brand.id,
@@ -92,10 +109,22 @@ export async function importStockCSV(_state: unknown, formData: FormData): Promi
           qualityGrade,
           costPrice,
           sellingPrice,
-          stockQty: isNaN(stockQty) ? 0 : stockQty,
+          stockQty: finalQty,
           lowStockThreshold: isNaN(lowStockThreshold) ? 5 : lowStockThreshold,
         },
       });
+
+      if (finalQty > 0) {
+        await prisma.stockMovement.create({
+          data: {
+            productId: product.id,
+            type: "IN",
+            quantity: finalQty,
+            note: "CSV import",
+            userId: session.userId,
+          },
+        });
+      }
 
       created++;
     } catch {

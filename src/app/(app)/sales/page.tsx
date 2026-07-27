@@ -5,11 +5,20 @@ import { SalesHistory } from "./sales-history";
 import { SupplierReturnsView } from "./supplier-returns-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default async function SalesPage() {
-  const session = await verifySession();
-  const showFinancials = session.role !== "SELLER";
+const VALID_TABS = ["new", "history", "supplier-returns"] as const;
 
+export default async function SalesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const defaultTab = VALID_TABS.includes(tab as (typeof VALID_TABS)[number])
+    ? (tab as string)
+    : "new";
+  const session = await verifySession();
   const isAdminOrOwner = session.role !== "SELLER";
+  const showFinancials = isAdminOrOwner;
 
   const [rawProducts, rawSales, suppliers, supplierReturns] = await Promise.all([
     prisma.product.findMany({
@@ -84,6 +93,7 @@ export default async function SalesPage() {
     totalRevenue: s.totalRevenue.toNumber(),
     totalCost: s.totalCost.toNumber(),
     profit: s.profit.toNumber(),
+    warrantyFee: s.warrantyFee ? s.warrantyFee.toNumber() : null,
     items: s.items.map((item) => ({
       ...item,
       unitPrice: item.unitPrice.toNumber(),
@@ -96,7 +106,7 @@ export default async function SalesPage() {
     <div className="p-4 md:p-6 space-y-4">
       <h1 className="text-xl font-bold text-white">Sales</h1>
 
-      <Tabs defaultValue="new">
+      <Tabs defaultValue={defaultTab}>
         <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="new" className="text-white data-active:bg-blue-600 data-active:text-white">
             New Sale

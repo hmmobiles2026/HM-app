@@ -59,7 +59,7 @@ export async function sendTelegramBackup(): Promise<BackupState> {
     `_Download full backup from the app: Settings → Backup_`;
 
   try {
-    const ok = await sendTelegramMessage(config.botToken, config.chatId, message);
+    const ok = await sendTelegramMessage(config.botToken, config.chatId, message, "Markdown");
     if (!ok) return { error: "Failed to send to Telegram. Check your bot config." };
     return { success: "Backup summary sent to Telegram." };
   } catch {

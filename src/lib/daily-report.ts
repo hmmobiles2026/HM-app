@@ -1,6 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
+function escapeMd(s: string): string {
+  return s.replace(/[_*`[]/g, "\\$&");
+}
+
 export async function buildDailyReport(): Promise<string> {
   const slOffset = 5.5 * 60 * 60 * 1000;
   const now = new Date();
@@ -88,11 +92,11 @@ export async function buildDailyReport(): Promise<string> {
     const header = `${numerals[i] ?? `${i + 1}.`} ${time}  *${fmt(Number(sale.totalRevenue))}*  _(profit: ${fmt(Number(sale.profit))})_`;
     const itemLines = sale.items.map((it) => {
       const p = it.product;
-      const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
-      const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}`;
+      const partSuffix = p.partBrand ? ` (${escapeMd(p.partBrand.name)})` : "";
+      const name = `${escapeMd(p.brand.name)}${p.model ? ` ${escapeMd(p.model.name)}` : ""} ${escapeMd(p.name)}${partSuffix}`;
       return `   • ${name} × ${it.quantity}`;
     }).join("\n");
-    const note = sale.note ? `\n   📝 ${sale.note}` : "";
+    const note = sale.note ? `\n   📝 ${escapeMd(sale.note)}` : "";
     return `${header}\n${itemLines}${note}`;
   }).join("\n\n");
 
@@ -105,8 +109,8 @@ export async function buildDailyReport(): Promise<string> {
   const lowLines = lowStock.length > 0
     ? lowStock.map((p) => {
         const icon = p.stockQty === 0 ? "🔴" : "🟡";
-        const partSuffix = p.partBrandName ? ` (${p.partBrandName})` : "";
-        return `${icon} ${p.brandName} — ${p.name}${partSuffix}: *${p.stockQty}* left`;
+        const partSuffix = p.partBrandName ? ` (${escapeMd(p.partBrandName)})` : "";
+        return `${icon} ${escapeMd(p.brandName)} — ${escapeMd(p.name)}${partSuffix}: *${p.stockQty}* left`;
       }).join("\n")
     : "✅ All stock levels OK";
 
@@ -114,9 +118,9 @@ export async function buildDailyReport(): Promise<string> {
     ? `━━━━━━━━━━━━━━━━━━━━\n` +
       `📉 *WRITTEN OFF TODAY*\n` +
       lostStock.map((m) => {
-        const note = m.note ? ` _(${m.note})_` : "";
-        const partSuffix = m.partBrandName ? ` (${m.partBrandName})` : "";
-        return `• ${m.brandName} — ${m.name}${partSuffix}: *${Math.abs(m.quantity)}* pcs${note}`;
+        const note = m.note ? ` _(${escapeMd(m.note)})_` : "";
+        const partSuffix = m.partBrandName ? ` (${escapeMd(m.partBrandName)})` : "";
+        return `• ${escapeMd(m.brandName)} — ${escapeMd(m.name)}${partSuffix}: *${Math.abs(m.quantity)}* pcs${note}`;
       }).join("\n") + "\n\n"
     : "";
 
@@ -127,7 +131,7 @@ export async function buildDailyReport(): Promise<string> {
       `Total: *${fmt(totalPendingClaim)}*\n` +
       pendingSupplierReturns.map((r) => {
         const p = r.saleItem.product;
-        return `• ${p.brand.name} — ${p.name} × ${r.quantity}  _(${r.supplier?.name ?? "?"})_  ${fmt(Number(r.costRecovery ?? 0))}`;
+        return `• ${escapeMd(p.brand.name)} — ${escapeMd(p.name)} × ${r.quantity}  _(${escapeMd(r.supplier?.name ?? "?")})_  ${fmt(Number(r.costRecovery ?? 0))}`;
       }).join("\n") + "\n\n"
     : "";
 

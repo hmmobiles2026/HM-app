@@ -46,6 +46,7 @@ type Props = {
 
 export function ProductForm({ brands, categories, suppliers, product, showCosts = true }: Props) {
   const [selectedBrandId, setSelectedBrandId] = useState(product?.brandId ?? "");
+  const [selectedModelId, setSelectedModelId] = useState(product?.modelId ?? "");
   const [selectedCategoryId, setSelectedCategoryId] = useState(product?.categoryId ?? "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,7 +87,7 @@ export function ProductForm({ brands, categories, suppliers, product, showCosts 
             name="brandId"
             items={brandItems}
             defaultValue={product?.brandId ?? ""}
-            onChange={(id) => setSelectedBrandId(id)}
+            onChange={(id) => { setSelectedBrandId(id); setSelectedModelId(""); }}
             placeholder="Search brand…"
           />
           {state?.errors?.brandId && (
@@ -99,7 +100,7 @@ export function ProductForm({ brands, categories, suppliers, product, showCosts 
             key={selectedBrandId}
             name="modelId"
             items={modelItems}
-            defaultValue={product?.modelId ?? ""}
+            defaultValue={selectedModelId}
             placeholder={selectedBrandId ? "Search model…" : "Select brand first"}
             disabled={!selectedBrandId}
           />

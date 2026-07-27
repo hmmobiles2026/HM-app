@@ -86,7 +86,8 @@ export async function startFreeTrial(): Promise<LicenseActionState> {
       config.chatId,
       `✅ *FREE TRIAL ACTIVATED — HM Stocks*\n\n` +
       `Your 4-month free trial has started.\n` +
-      `Telegram alerts are now active.`
+      `Telegram alerts are now active.`,
+      "Markdown"
     );
   }
 
@@ -101,7 +102,7 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
   const license = await prisma.appLicense.findFirst();
   if (!license) return { error: "No license record found." };
 
-  const config = await prisma.telegramConfig.findFirst({ where: { isActive: true } });
+  const config = await prisma.telegramConfig.findFirst();
 
   // Atomically: mark deactivated, delete all sessions, disable telegram config
   await prisma.$transaction([
@@ -123,7 +124,8 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
       `⚠️ *HM Stocks — Access Suspended*\n\n` +
       `Your access has been suspended.\n\n` +
       `Pay *LKR 2,000* to reactivate for 3 months.\n\n` +
-      `Contact HM Stocks support to make payment.`
+      `Contact HM Stocks support to make payment.`,
+      "Markdown"
     );
   }
 

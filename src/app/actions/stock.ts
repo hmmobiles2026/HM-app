@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/dal";
 import { v2 as cloudinary } from "cloudinary";
 import { notifyStockIn } from "@/lib/telegram";
+import { after } from "next/server";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -34,7 +35,7 @@ async function uploadImage(
     return { error: "Cloudinary is not configured. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET to environment variables." };
   }
 
-  if (!ALLOWED_TYPES.includes(file.type) && file.type !== "") {
+  if (!ALLOWED_TYPES.includes(file.type)) {
     return { error: "Only JPEG, PNG, WebP or AVIF images are accepted." };
   }
   if (file.size > MAX_SIZE) {
@@ -42,8 +43,7 @@ async function uploadImage(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const mimeType = file.type || "image/jpeg";
-  const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+  const dataUri = `data:${file.type};base64,${buffer.toString("base64")}`;
 
   const result = await cloudinary.uploader
     .upload(dataUri, { folder: "hm-stocks", resource_type: "image" })
@@ -107,16 +107,29 @@ export async function createProduct(
     imagePublicId = uploaded.publicId;
   }
 
-  await prisma.product.create({
-    data: {
-      ...rest,
-      modelId: modelId || null,
-      partBrandId: partBrandId || null,
-      supplierId: supplierId || null,
-      tags: tagList,
-      imageUrl,
-      imagePublicId,
-    },
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.product.create({
+      data: {
+        ...rest,
+        modelId: modelId || null,
+        partBrandId: partBrandId || null,
+        supplierId: supplierId || null,
+        tags: tagList,
+        imageUrl,
+        imagePublicId,
+      },
+    });
+    if (rest.stockQty > 0) {
+      await tx.stockMovement.create({
+        data: {
+          productId: created.id,
+          type: "IN",
+          quantity: rest.stockQty,
+          note: "Initial stock",
+          userId: session.userId,
+        },
+      });
+    }
   });
 
   revalidatePath("/stock");
@@ -158,27 +171,28 @@ export async function updateProduct(
     imagePublicId = uploaded.publicId;
   }
 
-  const updated = await prisma.product.update({
-    where: { id },
-    data: { ...rest, modelId: modelId || null, partBrandId: partBrandId || null, supplierId: supplierId || null, tags: tagList, imageUrl, imagePublicId },
-  });
-
-  // Record price history if cost or selling price changed
   const oldCost = Number(existing.costPrice);
-  const newCost = Number(updated.costPrice);
   const oldSell = Number(existing.sellingPrice);
-  const newSell = Number(updated.sellingPrice);
-  if (oldCost !== newCost || oldSell !== newSell) {
-    await prisma.priceHistory.create({
-      data: {
-        productId: id,
-        oldCostPrice: oldCost,
-        newCostPrice: newCost,
-        oldSellPrice: oldSell,
-        newSellPrice: newSell,
-      },
+
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({
+      where: { id },
+      data: { ...rest, modelId: modelId || null, partBrandId: partBrandId || null, supplierId: supplierId || null, tags: tagList, imageUrl, imagePublicId },
     });
-  }
+    const newCost = Number(updated.costPrice);
+    const newSell = Number(updated.sellingPrice);
+    if (oldCost !== newCost || oldSell !== newSell) {
+      await tx.priceHistory.create({
+        data: {
+          productId: id,
+          oldCostPrice: oldCost,
+          newCostPrice: newCost,
+          oldSellPrice: oldSell,
+          newSellPrice: newSell,
+        },
+      });
+    }
+  });
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${id}`);
@@ -204,16 +218,17 @@ export async function addStock(
 
   const { quantity, note, supplierId } = parsed.data;
 
-  const [, product, user] = await Promise.all([
-    prisma.$transaction([
-      prisma.stockMovement.create({
-        data: { productId, type: "IN", quantity, note: note || null, userId: session.userId, ...(supplierId ? { supplier: { connect: { id: supplierId } } } : {}) },
-      }),
-      prisma.product.update({
-        where: { id: productId },
-        data: { stockQty: { increment: quantity } },
-      }),
-    ]),
+  await prisma.$transaction([
+    prisma.stockMovement.create({
+      data: { productId, type: "IN", quantity, note: note || null, userId: session.userId, supplierId: supplierId || null },
+    }),
+    prisma.product.update({
+      where: { id: productId },
+      data: { stockQty: { increment: quantity } },
+    }),
+  ]);
+
+  const [product, user] = await Promise.all([
     prisma.product.findUnique({
       where: { id: productId },
       include: { brand: true, model: true, partBrand: true },
@@ -222,16 +237,20 @@ export async function addStock(
   ]);
 
   if (product && user) {
-    notifyStockIn(
-      [{ productName: product.name, brandName: product.brand.name, modelName: product.model?.name ?? null, partBrandName: product.partBrand?.name ?? null, quantity, costPrice: Number(product.costPrice) }],
-      user.name,
-      note || null
-    ).catch(() => {});
+    const _product = product;
+    const _userName = user.name;
+    after(() =>
+      notifyStockIn(
+        [{ productName: _product.name, brandName: _product.brand.name, modelName: _product.model?.name ?? null, partBrandName: _product.partBrand?.name ?? null, quantity, costPrice: Number(_product.costPrice) }],
+        _userName,
+        note || null
+      )
+    );
   }
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${productId}`);
-  redirect("/stock");
+  redirect(`/stock/${productId}`);
 }
 
 export type BulkStockInState =
@@ -266,7 +285,7 @@ export async function addStockBulk(
     prisma.$transaction(
       items.flatMap(({ productId, quantity }) => [
         prisma.stockMovement.create({
-          data: { productId, type: "IN", quantity, note, userId: session.userId, ...(supplierId ? { supplier: { connect: { id: supplierId } } } : {}) },
+          data: { productId, type: "IN", quantity, note, userId: session.userId, supplierId: supplierId || null },
         }),
         prisma.product.update({
           where: { id: productId },
@@ -282,17 +301,23 @@ export async function addStockBulk(
   ]);
 
   if (user && products.length > 0) {
-    notifyStockIn(
-      items.map(({ productId, quantity }) => {
-        const p = products.find((x) => x.id === productId)!;
-        return { productName: p.name, brandName: p.brand.name, modelName: p.model?.name ?? null, partBrandName: p.partBrand?.name ?? null, quantity, costPrice: Number(p.costPrice) };
-      }),
-      user.name,
-      note
-    ).catch(() => {});
+    const _products = products;
+    const _userName = user.name;
+    const _items = items;
+    after(() =>
+      notifyStockIn(
+        _items.map(({ productId, quantity }) => {
+          const p = _products.find((x) => x.id === productId)!;
+          return { productName: p.name, brandName: p.brand.name, modelName: p.model?.name ?? null, partBrandName: p.partBrand?.name ?? null, quantity, costPrice: Number(p.costPrice) };
+        }),
+        _userName,
+        note
+      )
+    );
   }
 
   revalidatePath("/stock");
+  for (const { productId } of items) revalidatePath(`/stock/${productId}`);
   redirect("/stock");
 }
 

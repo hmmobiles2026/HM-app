@@ -183,9 +183,13 @@ export async function createCategory(
 
 export async function deleteCategory(id: string): Promise<ActionState> {
   await verifyRole(["ADMIN", "OWNER"]);
-  await prisma.category.delete({ where: { id } });
-  revalidatePath("/settings");
-  return { success: "Category deleted." };
+  try {
+    await prisma.category.delete({ where: { id } });
+    revalidatePath("/settings");
+    return { success: "Category deleted." };
+  } catch {
+    return { error: "Cannot delete a category that has products linked to it." };
+  }
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────

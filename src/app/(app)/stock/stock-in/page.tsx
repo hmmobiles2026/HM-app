@@ -10,7 +10,7 @@ export default async function BulkStockInPage() {
   const [rawProducts, suppliers] = await Promise.all([
     prisma.product.findMany({
       where: { isActive: true },
-      include: { brand: true, model: true },
+      include: { brand: true, model: true, partBrand: true, category: true },
       orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
     }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }),

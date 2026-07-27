@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { resolveSupplierReturn } from "@/app/actions/returns";
+import { resolveSupplierReturn, cancelSupplierReturn } from "@/app/actions/returns";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
-import { Truck, CheckCircle2, Clock, Download, Package, ArrowRight } from "lucide-react";
+import { Truck, CheckCircle2, Clock, Download, Package, ArrowRight, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 type SupplierReturn = {
@@ -93,6 +93,62 @@ function MarkReturnedButton({ id }: { id: string }) {
   );
 }
 
+function CancelReturnButton({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const router = useRouter();
+
+  function confirm() {
+    start(async () => {
+      const r = await cancelSupplierReturn(id);
+      if (r?.error) toast.error(r.error);
+      else {
+        toast.success("Return cancelled. Sale figures restored.");
+        setOpen(false);
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg bg-red-950/40 hover:bg-red-950/60 text-red-400 border border-red-900/50 transition-colors"
+      >
+        <Undo2 className="h-3.5 w-3.5" />
+        Cancel Return
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white">Cancel this return?</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              The return record will be deleted and the sale&apos;s profit and revenue will be restored. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 mt-2 flex-row justify-end">
+            <button
+              onClick={() => setOpen(false)}
+              className="h-9 px-4 text-sm rounded-xl border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              Keep Return
+            </button>
+            <Button
+              disabled={pending}
+              onClick={confirm}
+              className="bg-red-600 hover:bg-red-500 h-9"
+            >
+              {pending ? "Cancelling…" : "Yes, Cancel It"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function PendingCard({ r, isAdmin }: { r: SupplierReturn; isAdmin: boolean }) {
   const p = r.saleItem.product;
   const saleRef = r.saleItem.sale.id.slice(-6).toUpperCase();
@@ -145,10 +201,15 @@ function PendingCard({ r, isAdmin }: { r: SupplierReturn; isAdmin: boolean }) {
           <p className="text-xs text-slate-400 italic">&ldquo;{r.reason}&rdquo;</p>
         </div>
 
-        {/* Row 4: date + action */}
-        <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+        {/* Row 4: date + actions */}
+        <div className="flex items-center justify-between pt-1 border-t border-slate-800 gap-2 flex-wrap">
           <p className="text-xs text-slate-500">{format(new Date(r.createdAt), "dd MMM yyyy · HH:mm")}</p>
-          {isAdmin && <MarkReturnedButton id={r.id} />}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <CancelReturnButton id={r.id} />
+              <MarkReturnedButton id={r.id} />
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -37,12 +37,16 @@ export async function createReturn(
     where: { id: saleItemId },
     include: {
       returns: { select: { quantity: true } },
-      sale: { select: { id: true } },
-      product: { select: { name: true, brand: { select: { name: true } } } },
+      sale: { select: { id: true, sellerId: true, warrantyFee: true } },
+      product: { select: { name: true, isActive: true, brand: { select: { name: true } } } },
     },
   });
 
   if (!saleItem) return { error: "Sale item not found." };
+
+  if (session.role === "SELLER" && saleItem.sale.sellerId !== session.userId) {
+    return { error: "You can only return items from your own sales." };
+  }
 
   const alreadyReturned = saleItem.returns.reduce((s, r) => s + r.quantity, 0);
   const maxReturn = saleItem.quantity - alreadyReturned;
@@ -53,8 +57,16 @@ export async function createReturn(
   const refundAmount = Number(saleItem.unitPrice) * quantity;
   const costRecovery = Number(saleItem.unitCost) * quantity;
   const saleRef = saleItem.sale.id.slice(-6).toUpperCase();
+  const refundWarranty = formData.get("refundWarranty") === "true";
+  const warrantyToRefund =
+    refundWarranty && returnType === "STOCK_BACK" && saleItem.sale.warrantyFee
+      ? Number(saleItem.sale.warrantyFee)
+      : 0;
 
   if (returnType === "STOCK_BACK") {
+    if (!saleItem.product.isActive) {
+      return { error: "This product has been deleted and cannot be restocked." };
+    }
     await prisma.$transaction([
       prisma.saleReturn.create({
         data: {
@@ -79,18 +91,21 @@ export async function createReturn(
         },
       }),
       // Revenue and cost both reverse; profit shrinks by the original margin on these units
+      // If warranty is being refunded, also clear it from the sale (set to null to prevent double-refund)
       prisma.sale.update({
         where: { id: saleItem.sale.id },
         data: {
-          totalRevenue: { decrement: refundAmount },
+          totalRevenue: { decrement: refundAmount + warrantyToRefund },
           totalCost: { decrement: costRecovery },
-          profit: { decrement: refundAmount - costRecovery },
+          profit: { decrement: refundAmount + warrantyToRefund - costRecovery },
+          ...(warrantyToRefund > 0 ? { warrantyFee: null } : {}),
         },
       }),
     ]);
     revalidatePath("/sales");
     revalidatePath("/stock");
-    return { success: `Returned ${quantity} × ${saleItem.product.name}. Stock restored.` };
+    const warrantyNote = warrantyToRefund > 0 ? ` Warranty fee (LKR ${warrantyToRefund.toLocaleString("en-LK")}) also reversed.` : "";
+    return { success: `Returned ${quantity} × ${saleItem.product.name}. Stock restored.${warrantyNote}` };
   }
 
   // SUPPLIER_RETURN — stock stays out, track pending claim
@@ -123,10 +138,41 @@ export async function createReturn(
 
 export async function resolveSupplierReturn(id: string): Promise<ReturnState> {
   await verifyRole(["ADMIN", "OWNER"]);
+  const r = await prisma.saleReturn.findUnique({ where: { id }, select: { returnType: true } });
+  if (!r || r.returnType !== "SUPPLIER_RETURN") {
+    return { error: "Not a supplier return." };
+  }
   await prisma.saleReturn.update({
     where: { id },
     data: { supplierStatus: "RESOLVED", resolvedAt: new Date() },
   });
   revalidatePath("/sales");
   return { success: "Marked as resolved." };
+}
+
+export async function cancelSupplierReturn(id: string): Promise<ReturnState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+
+  const r = await prisma.saleReturn.findUnique({
+    where: { id },
+    include: { saleItem: { select: { sale: { select: { id: true } } } } },
+  });
+
+  if (!r) return { error: "Return not found." };
+  if (r.returnType !== "SUPPLIER_RETURN") return { error: "Cannot cancel a non-supplier return here." };
+  if (r.supplierStatus === "RESOLVED") return { error: "Cannot undo a return that has already been resolved." };
+
+  await prisma.$transaction([
+    prisma.saleReturn.delete({ where: { id } }),
+    prisma.sale.update({
+      where: { id: r.saleItem.sale.id },
+      data: {
+        totalRevenue: { increment: r.refundAmount },
+        profit: { increment: r.refundAmount },
+      },
+    }),
+  ]);
+
+  revalidatePath("/sales");
+  return { success: "Return cancelled. Sale figures restored." };
 }

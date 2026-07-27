@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/dal";
-import { notifyLowStock } from "@/lib/telegram";
+import { notifyLowStock, notifySale } from "@/lib/telegram";
+import { after } from "next/server";
 
 const SaleItemSchema = z.object({
   productId: z.string().min(1),
@@ -40,8 +41,15 @@ export async function createSale(
     }
   }
 
+  // Deduplicate by productId (sum quantities) to prevent stock bypass
+  const deduped = new Map<string, number>();
+  for (const { productId, quantity } of rawItems) {
+    deduped.set(productId, (deduped.get(productId) ?? 0) + quantity);
+  }
+  const deduplicatedItems = [...deduped.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+
   const parsed = CreateSaleSchema.safeParse({
-    items: rawItems,
+    items: deduplicatedItems,
     note: formData.get("note"),
   });
 
@@ -50,6 +58,8 @@ export async function createSale(
   }
 
   const { items, note } = parsed.data;
+  const warrantyFeeRaw = Number(formData.get("warrantyFee") ?? 0);
+  const warrantyFee = warrantyFeeRaw >= 1 ? warrantyFeeRaw : 0;
 
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) }, isActive: true },
@@ -75,8 +85,10 @@ export async function createSale(
     return { productId: item.productId, quantity: item.quantity, unitPrice, unitCost };
   });
 
+  totalRevenue += warrantyFee;
   const profit = totalRevenue - totalCost;
 
+  let saleId = "";
   await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.create({
       data: {
@@ -84,10 +96,12 @@ export async function createSale(
         totalRevenue,
         totalCost,
         profit,
+        warrantyFee: warrantyFee > 0 ? warrantyFee : null,
         note: note || null,
         items: { create: saleItems },
       },
     });
+    saleId = sale.id;
 
     for (const item of items) {
       await tx.product.update({
@@ -106,15 +120,31 @@ export async function createSale(
     }
   });
 
-  // Fire low-stock Telegram alerts (non-blocking)
-  const soldIds = items.map((i) => i.productId);
-  prisma.product.findMany({
-    where: { id: { in: soldIds }, isActive: true },
-    include: { brand: true, model: true, partBrand: true },
-  }).then((updated) => {
+  after(async () => {
+    const soldIds = items.map((i) => i.productId);
+    const updated = await prisma.product.findMany({
+      where: { id: { in: soldIds }, isActive: true },
+      include: { brand: true, model: true, partBrand: true },
+    });
+
     const lowStock = updated.filter((p) => p.stockQty <= p.lowStockThreshold);
-    notifyLowStock(lowStock);
-  }).catch(() => {});
+    const notifyItems = saleItems.map((si) => {
+      const p = updated.find((pr) => pr.id === si.productId)!;
+      return {
+        productName: p.name,
+        brandName: p.brand.name,
+        modelName: p.model?.name ?? null,
+        partBrandName: p.partBrand?.name ?? null,
+        quantity: si.quantity,
+        unitPrice: si.unitPrice,
+      };
+    });
+
+    await Promise.all([
+      notifySale(saleId, session.name, notifyItems, totalRevenue, profit, warrantyFee || null),
+      notifyLowStock(lowStock),
+    ]);
+  });
 
   revalidatePath("/sales");
   revalidatePath("/stock");

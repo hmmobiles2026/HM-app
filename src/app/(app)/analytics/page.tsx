@@ -87,11 +87,11 @@ async function getAnalyticsData() {
     { weekStartsOn: 5 }
   );
   const weeklyData = weeks.map((weekStart) => {
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
+    const nextWeekStart = new Date(weekStart);
+    nextWeekStart.setDate(nextWeekStart.getDate() + 7);
     const weekSales = sales.filter((s) => {
       const d = new Date(s.createdAt);
-      return d >= weekStart && d <= weekEnd;
+      return d >= weekStart && d < nextWeekStart;
     });
     return {
       label: format(weekStart, "dd MMM"),

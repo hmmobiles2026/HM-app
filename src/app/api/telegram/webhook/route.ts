@@ -5,6 +5,17 @@ import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
 
 const SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+const SL_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+// Escape special chars for Telegram old Markdown mode
+function escapeMd(s: string): string {
+  return s.replace(/[_*`[]/g, "\\$&");
+}
+
+// In-memory rate limiter for bot password attempts (per chatId)
+const botAttempts = new Map<string, { count: number; blockedUntil: number }>();
+const MAX_ATTEMPTS = 5;
+const BLOCK_MS = 15 * 60 * 1000; // 15 minutes
 
 
 export async function POST(req: NextRequest) {
@@ -61,7 +72,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (reply) {
-    await sendTelegramMessage(config.botToken, chatId, reply);
+    await sendTelegramMessage(config.botToken, chatId, reply, "Markdown");
     await prisma.telegramLog.create({
       data: { direction: "OUT", from: "bot", to: chatId, message: reply },
     });
@@ -108,6 +119,13 @@ async function routeMessage(
 }
 
 async function tryAuthenticate(chatId: string, password: string, now: Date): Promise<string> {
+  const ts = now.getTime();
+  const limiter = botAttempts.get(chatId) ?? { count: 0, blockedUntil: 0 };
+  if (ts < limiter.blockedUntil) {
+    const mins = Math.ceil((limiter.blockedUntil - ts) / 60000);
+    return `🔒 Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? "s" : ""}.`;
+  }
+
   const users = await prisma.user.findMany({ where: { isActive: true } });
 
   let matchedUser = null;
@@ -119,8 +137,16 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
   }
 
   if (!matchedUser) {
-    return "❌ Wrong password. Try again:";
+    const newCount = limiter.count + 1;
+    if (newCount >= MAX_ATTEMPTS) {
+      botAttempts.set(chatId, { count: 0, blockedUntil: ts + BLOCK_MS });
+      return `🔒 Too many failed attempts. Try again in 15 minutes.`;
+    }
+    botAttempts.set(chatId, { count: newCount, blockedUntil: 0 });
+    return `❌ Wrong password. Try again:`;
   }
+
+  botAttempts.delete(chatId);
 
   await prisma.telegramSession.upsert({
     where: { chatId },
@@ -139,7 +165,7 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
 
   const roleLabel: Record<string, string> = { OWNER: "Owner", ADMIN: "Admin", SELLER: "Seller" };
   return (
-    `✅ *Welcome, ${matchedUser.name}!*\n` +
+    `✅ *Welcome, ${escapeMd(matchedUser.name)}!*\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `👤 Role: ${roleLabel[matchedUser.role] ?? matchedUser.role}\n` +
     `🔒 Session valid for 24 hours\n\n` +
@@ -289,8 +315,8 @@ async function buildStockMessage(query: string, canViewCosts: boolean): Promise<
   }
 
   const lines = products.map((p) => {
-    const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
-    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}`;
+    const partSuffix = p.partBrand ? ` (${escapeMd(p.partBrand.name)})` : "";
+    const name = `${escapeMd(p.brand.name)}${p.model ? ` ${escapeMd(p.model.name)}` : ""} ${escapeMd(p.name)}${partSuffix}`;
     const sell = Number(p.sellingPrice);
     const cost = Number(p.costPrice);
     const margin = sell > 0 ? ((sell - cost) / sell * 100).toFixed(0) : "0";
@@ -330,11 +356,12 @@ async function buildSummaryMessage(text: string): Promise<string> {
     start = new Date(fridaySL.getTime() - SL_OFFSET);
     label = "This Week (Fri–Thu)";
   } else if (text.includes("month") || text === "m") {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const slNow = new Date(now.getTime() + SL_OFFSET_MS);
+    start = new Date(Date.UTC(slNow.getUTCFullYear(), slNow.getUTCMonth(), 1) - SL_OFFSET_MS);
     label = "This Month";
   } else {
-    start = new Date(now);
-    start.setHours(0, 0, 0, 0);
+    const slNow = new Date(now.getTime() + SL_OFFSET_MS);
+    start = new Date(Date.UTC(slNow.getUTCFullYear(), slNow.getUTCMonth(), slNow.getUTCDate()) - SL_OFFSET_MS);
     label = "Today";
   }
 
@@ -382,8 +409,7 @@ async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
     where: { isActive: true },
     include: { brand: true, model: true, partBrand: true },
     orderBy: { stockQty: "asc" },
-    take: 15,
-  }).then((all) => all.filter((p) => p.stockQty <= p.lowStockThreshold));
+  }).then((all) => all.filter((p) => p.stockQty <= p.lowStockThreshold).slice(0, 15));
 
   if (products.length === 0) {
     return `✅ *All stock levels are healthy!*`;
@@ -391,8 +417,8 @@ async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
 
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
   const lines = products.map((p) => {
-    const partSuffix = p.partBrand ? ` (${p.partBrand.name})` : "";
-    const name = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} ${p.name}${partSuffix}`;
+    const partSuffix = p.partBrand ? ` (${escapeMd(p.partBrand.name)})` : "";
+    const name = `${escapeMd(p.brand.name)}${p.model ? ` ${escapeMd(p.model.name)}` : ""} ${escapeMd(p.name)}${partSuffix}`;
     const icon = p.stockQty === 0 ? "🔴" : "🟡";
     const sell = Number(p.sellingPrice);
     const cost = Number(p.costPrice);
@@ -436,8 +462,8 @@ async function buildSupplierReturnsMessage(): Promise<string> {
     msg += `⏳ *Pending (${pending.length}) — ${fmt(totalPending)} to recover*\n\n`;
     for (const r of pending) {
       const p = r.saleItem.product;
-      const label = [p.brand.name, p.model?.name, p.name].filter(Boolean).join(" ");
-      msg += `🔸 *${label}*\n   Qty: ${r.quantity}  |  Claim: ${fmt(Number(r.costRecovery ?? 0))}\n   Supplier: ${r.supplier?.name ?? "—"}\n   Reason: ${r.reason}\n\n`;
+      const label = [p.brand.name, p.model?.name, p.name].filter((s): s is string => !!s).map(escapeMd).join(" ");
+      msg += `🔸 *${label}*\n   Qty: ${r.quantity}  |  Claim: ${fmt(Number(r.costRecovery ?? 0))}\n   Supplier: ${escapeMd(r.supplier?.name ?? "—")}\n   Reason: ${escapeMd(r.reason)}\n\n`;
     }
   }
 
@@ -445,8 +471,8 @@ async function buildSupplierReturnsMessage(): Promise<string> {
     msg += `✅ *Resolved (${resolved.length})*\n\n`;
     for (const r of resolved) {
       const p = r.saleItem.product;
-      const label = [p.brand.name, p.model?.name, p.name].filter(Boolean).join(" ");
-      msg += `✔️ ${label} × ${r.quantity} — ${r.supplier?.name ?? "—"}\n`;
+      const label = [p.brand.name, p.model?.name, p.name].filter((s): s is string => !!s).map(escapeMd).join(" ");
+      msg += `✔️ ${label} × ${r.quantity} — ${escapeMd(r.supplier?.name ?? "—")}\n`;
     }
   }
 

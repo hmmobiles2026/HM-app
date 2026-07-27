@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -21,7 +22,8 @@ export async function GET(req: Request) {
         config.chatId,
         `🔴 *LICENSE EXPIRED — HM Stocks*\n\n` +
         `Telegram alerts are now disabled.\n` +
-        `Contact HM Stocks support to renew (LKR 2,000 / 3 months).`
+        `Contact HM Stocks support to renew (LKR 2,000 / 3 months).`,
+        "Markdown"
       );
     }
     return NextResponse.json({ skipped: true, reason: "License expired" });
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
   ]);
 
   if (config) {
-    await sendTelegramMessage(config.botToken, config.chatId, text);
+    await sendTelegramMessage(config.botToken, config.chatId, text, "Markdown");
 
     if (license.daysLeft <= 7) {
       await sendTelegramMessage(
@@ -41,7 +43,8 @@ export async function GET(req: Request) {
         config.chatId,
         `⏳ *LICENSE EXPIRING SOON*\n` +
         `${license.isTrial ? "Free trial" : "License"} expires in *${license.daysLeft} day${license.daysLeft !== 1 ? "s" : ""}*.\n` +
-        `Renew now — LKR 2,000 / 3 months.`
+        `Renew now — LKR 2,000 / 3 months.`,
+        "Markdown"
       );
     }
   }

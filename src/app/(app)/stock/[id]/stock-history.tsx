@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownCircle, ArrowUpCircle, RefreshCw, Undo2 } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, RefreshCw, Undo2, Truck } from "lucide-react";
 
 type Movement = {
   id: string;
@@ -9,6 +9,7 @@ type Movement = {
   note: string | null;
   createdAt: Date;
   createdBy: { name: string };
+  supplier: { name: string } | null;
 };
 
 const typeConfig = {
@@ -44,6 +45,7 @@ const typeConfig = {
 
 export function StockHistory({
   movements,
+  showCosts,
 }: {
   movements: Movement[];
   showCosts: boolean;
@@ -67,13 +69,19 @@ export function StockHistory({
           >
             <cfg.icon className={`h-5 w-5 flex-shrink-0 ${cfg.color}`} />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className={`text-xs ${cfg.badge}`}>
                   {cfg.label}
                 </Badge>
                 <span className="text-white font-semibold text-sm">
                   {cfg.sign}{m.quantity}
                 </span>
+                {m.supplier && (
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                    <Truck className="h-3 w-3" />
+                    {m.supplier.name}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 {m.createdBy.name} ·{" "}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, ChevronDown, ChevronUp } from "lucide-react";
+import { Receipt, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { ReturnButton } from "./return-button";
 
 type SaleItem = {
@@ -27,6 +27,7 @@ type Sale = {
   totalRevenue: number;
   totalCost: number;
   profit: number;
+  warrantyFee: number | null;
   note: string | null;
   createdAt: Date;
   seller: { name: string };
@@ -171,12 +172,34 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
                           maxQty={item.quantity - item.returnedQty}
                           productName={item.product.name}
                           suppliers={suppliers}
+                          saleWarrantyFee={sale.warrantyFee}
                         />
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
+              {sale.warrantyFee && sale.warrantyFee > 0 && (
+                <tbody>
+                  <tr className="border-t border-dashed border-slate-800 bg-emerald-950/20">
+                    <td colSpan={4} className="px-5 py-2.5">
+                      <span className="flex items-center gap-1.5 text-sm text-emerald-300 font-medium">
+                        <ShieldCheck className="h-4 w-4" />
+                        Warranty
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-semibold text-white tabular-nums">
+                      {lkr(sale.warrantyFee)}
+                    </td>
+                    {showFinancials && (
+                      <td className="px-4 py-2.5 text-right text-sm text-emerald-400 tabular-nums">
+                        {lkr(sale.warrantyFee)}
+                      </td>
+                    )}
+                    <td />
+                  </tr>
+                </tbody>
+              )}
               <tfoot>
                 <tr className="border-t border-slate-700 bg-slate-800/30">
                   <td colSpan={4} className="px-5 py-3 text-xs text-slate-500">
@@ -218,12 +241,21 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-white tabular-nums">{lkr(Number(item.unitPrice) * item.quantity)}</p>
-                      <ReturnButton saleItemId={item.id} maxQty={item.quantity - item.returnedQty} productName={item.product.name} suppliers={suppliers} />
+                      <ReturnButton saleItemId={item.id} maxQty={item.quantity - item.returnedQty} productName={item.product.name} suppliers={suppliers} saleWarrantyFee={sale.warrantyFee} />
                     </div>
                   </div>
                 </div>
               );
             })}
+            {sale.warrantyFee && sale.warrantyFee > 0 && (
+              <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-800">
+                <span className="flex items-center gap-1.5 text-sm text-emerald-300 font-medium">
+                  <ShieldCheck className="h-4 w-4" />
+                  Warranty
+                </span>
+                <span className="text-sm font-semibold text-white tabular-nums">{lkr(sale.warrantyFee)}</span>
+              </div>
+            )}
             {sale.note && (
               <p className="text-xs text-slate-500 italic pt-2 border-t border-slate-800">{sale.note}</p>
             )}

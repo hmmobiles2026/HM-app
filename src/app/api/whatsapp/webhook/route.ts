@@ -1,5 +1,14 @@
 import { NextRequest } from "next/server";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+
+const WA_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const waSessions = new Map<string, { role: string; expiresAt: number }>();
+const waAttempts = new Map<string, { count: number; blockedUntil: number }>();
+const MAX_ATTEMPTS = 5;
+const BLOCK_MS = 15 * 60 * 1000;
+
+type WaConfig = { phoneNumberId: string; accessToken: string };
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -26,17 +35,101 @@ export async function POST(req: NextRequest) {
 
   if (!message) return new Response("OK", { status: 200 });
 
+  // Require active WhatsApp config
+  const config = await prisma.whatsAppConfig.findFirst({ where: { isActive: true } });
+  if (!config) return new Response("OK", { status: 200 });
+
+  // License check — same logic as Telegram webhook
+  const licenseRow = await prisma.appLicense.findFirst();
+  const now = new Date();
+  const hardBlocked =
+    !licenseRow ||
+    licenseRow.forceDeactivated ||
+    (!licenseRow.trialStartedAt && !licenseRow.licensedUntil);
+  if (!hardBlocked && licenseRow) {
+    const { addMonths } = await import("date-fns");
+    const trialEnd = licenseRow.trialStartedAt ? addMonths(licenseRow.trialStartedAt, 4) : now;
+    const expiresAt =
+      licenseRow.licensedUntil && licenseRow.licensedUntil > trialEnd
+        ? licenseRow.licensedUntil
+        : trialEnd;
+    if (now >= expiresAt) return new Response("OK", { status: 200 });
+  }
+  if (hardBlocked) return new Response("OK", { status: 200 });
+
   const from: string = message.from;
-  const text: string = message.text?.body ?? "";
+  const text: string = (message.text?.body ?? "").trim();
 
   await prisma.whatsAppLog.create({
     data: { direction: "IN", from, to: "bot", message: text },
   });
 
+  // Session check
+  const sessionEntry = waSessions.get(from);
+  const isAuthenticated = !!sessionEntry && sessionEntry.expiresAt > now.getTime();
+
+  if (text.toLowerCase() === "logout") {
+    waSessions.delete(from);
+    await sendWhatsAppMessage(from, config, "👋 Logged out. Send your password to log in again.");
+    return new Response("OK", { status: 200 });
+  }
+
+  if (!isAuthenticated) {
+    if (["help", "hi", "hello", "/start", "/help"].includes(text.toLowerCase())) {
+      await sendWhatsAppMessage(from, config, "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:");
+      return new Response("OK", { status: 200 });
+    }
+    if (text.length >= 4) {
+      const reply = await tryWaAuthenticate(from, text, now);
+      await sendWhatsAppMessage(from, config, reply);
+    } else {
+      await sendWhatsAppMessage(from, config, "🔐 Enter your login password to continue:");
+    }
+    return new Response("OK", { status: 200 });
+  }
+
   const reply = await handleBotMessage(text.toLowerCase().trim());
-  if (reply) await sendWhatsAppMessage(from, reply);
+  if (reply) await sendWhatsAppMessage(from, config, reply);
 
   return new Response("OK", { status: 200 });
+}
+
+async function tryWaAuthenticate(from: string, password: string, now: Date): Promise<string> {
+  const ts = now.getTime();
+  const limiter = waAttempts.get(from) ?? { count: 0, blockedUntil: 0 };
+  if (ts < limiter.blockedUntil) {
+    const mins = Math.ceil((limiter.blockedUntil - ts) / 60000);
+    return `🔒 Too many failed attempts. Try again in ${mins} minute${mins !== 1 ? "s" : ""}.`;
+  }
+
+  const users = await prisma.user.findMany({ where: { isActive: true } });
+  let matchedUser = null;
+  for (const user of users) {
+    if (await bcrypt.compare(password, user.password)) {
+      matchedUser = user;
+      break;
+    }
+  }
+
+  if (!matchedUser) {
+    const newCount = limiter.count + 1;
+    if (newCount >= MAX_ATTEMPTS) {
+      waAttempts.set(from, { count: 0, blockedUntil: ts + BLOCK_MS });
+      return `🔒 Too many failed attempts. Try again in 15 minutes.`;
+    }
+    waAttempts.set(from, { count: newCount, blockedUntil: 0 });
+    return `❌ Wrong password. Try again:`;
+  }
+
+  waAttempts.delete(from);
+  waSessions.set(from, { role: matchedUser.role, expiresAt: ts + WA_SESSION_TTL_MS });
+
+  const roleLabel: Record<string, string> = { OWNER: "Owner", ADMIN: "Admin", SELLER: "Seller" };
+  return (
+    `✅ *Welcome, ${matchedUser.name}!*\n` +
+    `Role: ${roleLabel[matchedUser.role] ?? matchedUser.role}\n\n` +
+    `Type *help* to see available commands.`
+  );
 }
 
 async function handleBotMessage(text: string): Promise<string | null> {
@@ -71,6 +164,7 @@ async function buildHelpMessage(): Promise<string> {
     "• *summary week* — This week's summary\n" +
     "• *summary month* — This month's summary\n" +
     "• *lowstock* — Items below threshold\n" +
+    "• *logout* — Sign out\n" +
     "• *help* — Show this message"
   );
 }
@@ -192,10 +286,7 @@ async function buildLowStockMessage(): Promise<string> {
   return `⚠️ *Low Stock Alert (${products.length} items)*\n\n${lines.join("\n")}`;
 }
 
-async function sendWhatsAppMessage(to: string, message: string) {
-  const config = await prisma.whatsAppConfig.findFirst({ where: { isActive: true } });
-  if (!config) return;
-
+async function sendWhatsAppMessage(to: string, config: WaConfig, message: string) {
   const url = `https://graph.facebook.com/v19.0/${config.phoneNumberId}/messages`;
 
   const res = await fetch(url, {

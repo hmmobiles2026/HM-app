@@ -8,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const [brands, categories, products, sales, movements] = await Promise.all([
+  const [brands, categories, products, sales, movements, saleReturns] = await Promise.all([
     prisma.brand.findMany({ include: { models: true } }),
     prisma.category.findMany(),
     prisma.product.findMany({
@@ -28,6 +28,7 @@ export async function GET() {
       },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.saleReturn.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
 
   const backup = {
@@ -79,6 +80,18 @@ export async function GET() {
         note: m.note,
         createdBy: m.createdBy.name,
         createdAt: m.createdAt.toISOString(),
+      })),
+      saleReturns: saleReturns.map((r) => ({
+        id: r.id,
+        saleItemId: r.saleItemId,
+        quantity: r.quantity,
+        reason: r.reason,
+        returnType: r.returnType,
+        refundAmount: r.refundAmount.toNumber(),
+        costRecovery: r.costRecovery?.toNumber() ?? null,
+        supplierStatus: r.supplierStatus ?? null,
+        resolvedAt: r.resolvedAt?.toISOString() ?? null,
+        createdAt: r.createdAt.toISOString(),
       })),
     },
   };

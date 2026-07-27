@@ -5,7 +5,7 @@ import { createSale } from "@/app/actions/sales";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, ShoppingCart, Minus, Tag } from "lucide-react";
+import { Plus, Trash2, ShoppingCart, Minus, Tag, ShieldCheck } from "lucide-react";
 import type { Product, Brand, PhoneModel, PartBrand, Category } from "@/generated/prisma/client";
 
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
@@ -43,6 +43,8 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
   const [qty, setQty] = useState(1);
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [totalInput, setTotalInput] = useState("");
+  const [warrantyEnabled, setWarrantyEnabled] = useState(false);
+  const [warrantyInput, setWarrantyInput] = useState("200");
   const [state, formAction, pending] = useActionState(createSale, undefined);
 
   const productItems = products.map((p) => ({
@@ -87,9 +89,11 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
     return s + (live >= 1 ? live : c.customPrice) * c.quantity;
   }, 0);
   const overrideVal = Number(totalInput);
-  const finalTotal = totalInput !== "" && overrideVal >= 1 && overrideVal < subtotal ? overrideVal : subtotal;
-  const discount = subtotal - finalTotal;
-  const scale = subtotal > 0 ? finalTotal / subtotal : 1;
+  const productsTotal = totalInput !== "" && overrideVal >= 1 && overrideVal < subtotal ? overrideVal : subtotal;
+  const warrantyFee = warrantyEnabled ? Math.max(0, Number(warrantyInput) || 0) : 0;
+  const finalTotal = productsTotal + warrantyFee;
+  const discount = subtotal - productsTotal;
+  const scale = subtotal > 0 ? productsTotal / subtotal : 1;
   const selectedProduct = products.find((p) => p.id === selectedId);
 
   return (
@@ -157,9 +161,11 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
           </p>
 
           {cart.map((item) => {
+            const livePrice = Number(priceInputs[item.product.id] ?? "");
+            const effectiveUnitPrice = livePrice >= 1 ? livePrice : item.customPrice;
             const originalPrice = Number(item.product.sellingPrice);
-            const isDiscounted = item.customPrice < originalPrice;
-            const discountAmt = originalPrice - item.customPrice;
+            const isDiscounted = effectiveUnitPrice < originalPrice;
+            const discountAmt = originalPrice - effectiveUnitPrice;
 
             return (
               <div key={item.product.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2.5">
@@ -241,7 +247,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                   </div>
 
                   <p className="text-sm font-bold text-white tabular-nums shrink-0 min-w-[72px] text-right">
-                    LKR {(item.customPrice * item.quantity).toLocaleString("en-LK")}
+                    LKR {(effectiveUnitPrice * item.quantity).toLocaleString("en-LK")}
                   </p>
                 </div>
               </div>
@@ -265,7 +271,7 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
               </div>
             )}
             <div className="flex items-center justify-between">
-              <p className="text-slate-400 text-sm font-medium">Total</p>
+              <p className="text-slate-400 text-sm font-medium">Products</p>
               <div className="flex items-center gap-1.5">
                 <span className="text-slate-400 text-sm">LKR</span>
                 <input
@@ -285,14 +291,69 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
               </div>
             </div>
 
-            <form action={formAction} className="space-y-3">
-              {cart.map((item, i) => (
-                <div key={item.product.id}>
-                  <input type="hidden" name={`productId_${i}`} value={item.product.id} />
-                  <input type="hidden" name={`quantity_${i}`} value={item.quantity} />
-                  <input type="hidden" name={`price_${i}`} value={Number((item.customPrice * scale).toFixed(2))} />
+            {/* Warranty row */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setWarrantyEnabled((v) => !v)}
+              onKeyDown={(e) => e.key === " " && setWarrantyEnabled((v) => !v)}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 -mx-3 cursor-pointer transition-colors select-none ${
+                warrantyEnabled
+                  ? "bg-emerald-500/10 border border-emerald-500/30"
+                  : "hover:bg-slate-800 border border-transparent"
+              }`}
+            >
+              {/* Radio circle */}
+              <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                warrantyEnabled ? "border-emerald-400" : "border-slate-600"
+              }`}>
+                {warrantyEnabled && <div className="h-2.5 w-2.5 rounded-full bg-emerald-400" />}
+              </div>
+
+              <ShieldCheck className={`h-4 w-4 shrink-0 ${warrantyEnabled ? "text-emerald-400" : "text-slate-500"}`} />
+              <span className={`text-sm font-medium flex-1 ${warrantyEnabled ? "text-emerald-300" : "text-slate-400"}`}>
+                Warranty
+              </span>
+
+              {warrantyEnabled ? (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-xl px-2.5 h-9"
+                >
+                  <span className="text-xs text-slate-400 shrink-0">LKR</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={warrantyInput}
+                    onChange={(e) => setWarrantyInput(e.target.value)}
+                    className="bg-transparent text-sm text-white font-medium outline-none w-20 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                 </div>
-              ))}
+              ) : (
+                <span className="text-xs text-slate-600">LKR 200</span>
+              )}
+            </div>
+
+            {warrantyEnabled && warrantyFee > 0 && (
+              <div className="flex items-center justify-between text-sm border-t border-slate-800 pt-2">
+                <p className="text-white font-semibold">Grand Total</p>
+                <p className="text-white font-bold text-xl tabular-nums">LKR {finalTotal.toLocaleString("en-LK")}</p>
+              </div>
+            )}
+
+            <form action={formAction} className="space-y-3">
+              {cart.map((item, i) => {
+                const livePrice = Number(priceInputs[item.product.id] ?? "");
+                const effectivePrice = livePrice >= 1 ? livePrice : item.customPrice;
+                return (
+                  <div key={item.product.id}>
+                    <input type="hidden" name={`productId_${i}`} value={item.product.id} />
+                    <input type="hidden" name={`quantity_${i}`} value={item.quantity} />
+                    <input type="hidden" name={`price_${i}`} value={Number((effectivePrice * scale).toFixed(2))} />
+                  </div>
+                );
+              })}
+              <input type="hidden" name="warrantyFee" value={warrantyFee} />
               <Input name="note" placeholder="Note (optional)"
                 className="h-11 rounded-xl bg-slate-800 border-slate-700 text-white placeholder:text-slate-500" />
               {state?.error && (

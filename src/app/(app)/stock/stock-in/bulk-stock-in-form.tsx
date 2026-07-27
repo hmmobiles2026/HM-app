@@ -7,13 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, PackagePlus, Minus } from "lucide-react";
-import type { Product, Brand, PhoneModel } from "@/generated/prisma/client";
+import type { Product, Brand, PhoneModel, PartBrand, Category } from "@/generated/prisma/client";
 
 type ProductRow = Omit<Product, "costPrice" | "sellingPrice"> & {
   costPrice: number;
   sellingPrice: number;
   brand: Brand;
   model: PhoneModel | null;
+  partBrand: PartBrand | null;
+  category: Category;
 };
 
 type Supplier = { id: string; name: string };
@@ -40,8 +42,8 @@ export function BulkStockInForm({ products, suppliers }: { products: ProductRow[
 
   const productItems = products.map((p) => ({
     id: p.id,
-    label: `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}`,
-    sublabel: `${gradeLabel[p.qualityGrade]}  ·  ${p.stockQty} in stock`,
+    label: `${p.brand.name}${p.model ? ` ${p.model.name}` : ""} — ${p.name}${p.partBrand ? ` · ${p.partBrand.name}` : ""}`,
+    sublabel: `${p.category.name}  ·  ${gradeLabel[p.qualityGrade]}  ·  ${p.stockQty} in stock`,
   }));
 
   function addToList() {
@@ -110,8 +112,10 @@ export function BulkStockInForm({ products, suppliers }: { products: ProductRow[
                 <p className="text-sm font-medium text-white truncate">
                   {item.product.brand.name}
                   {item.product.model ? ` ${item.product.model.name}` : ""} — {item.product.name}
+                  {item.product.partBrand ? ` · ${item.product.partBrand.name}` : ""}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-slate-500">{item.product.category.name}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${gradeBadge[item.product.qualityGrade]}`}>
                     {gradeLabel[item.product.qualityGrade]}
                   </span>

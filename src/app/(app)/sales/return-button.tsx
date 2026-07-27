@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Undo2, CheckCircle2, Package, Truck } from "lucide-react";
+import { Undo2, CheckCircle2, Package, Truck, ShieldCheck } from "lucide-react";
 
 type Supplier = { id: string; name: string };
 
@@ -16,14 +16,17 @@ export function ReturnButton({
   maxQty,
   productName,
   suppliers,
+  saleWarrantyFee,
 }: {
   saleItemId: string;
   maxQty: number;
   productName: string;
   suppliers: Supplier[];
+  saleWarrantyFee?: number | null;
 }) {
   const [open, setOpen] = useState(false);
   const [returnType, setReturnType] = useState<"STOCK_BACK" | "SUPPLIER_RETURN">("STOCK_BACK");
+  const [refundWarranty, setRefundWarranty] = useState(false);
   const action = createReturn.bind(null, saleItemId);
   const [state, formAction, pending] = useActionState(action, undefined);
 
@@ -85,6 +88,7 @@ export function ReturnButton({
 
           <form action={formAction} className="space-y-3">
             <input type="hidden" name="returnType" value={returnType} />
+            <input type="hidden" name="refundWarranty" value={refundWarranty ? "true" : "false"} />
 
             <div className="space-y-2">
               <div className="flex gap-2 items-start">
@@ -132,6 +136,33 @@ export function ReturnButton({
                 </>
               )}
             </div>
+
+            {returnType === "STOCK_BACK" && saleWarrantyFee && saleWarrantyFee > 0 && (
+              <button
+                type="button"
+                onClick={() => setRefundWarranty((v) => !v)}
+                className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-sm transition-colors ${
+                  refundWarranty
+                    ? "bg-emerald-950/40 border-emerald-700 text-emerald-300"
+                    : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  <span>Refund warranty fee</span>
+                  <span className="font-semibold tabular-nums">
+                    LKR {saleWarrantyFee.toLocaleString("en-LK")}
+                  </span>
+                </span>
+                <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 transition-colors ${
+                  refundWarranty ? "bg-emerald-500 border-emerald-500" : "bg-slate-700 border-slate-600"
+                }`}>
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    refundWarranty ? "translate-x-4" : "translate-x-0"
+                  }`} />
+                </span>
+              </button>
+            )}
 
             {state?.error && (
               <p className="text-xs text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">

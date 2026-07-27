@@ -61,7 +61,6 @@ export async function GET() {
         const lineRev = price * qty;
         const lineCost = cost * qty;
         const p = item.product;
-        const partLabel = [p.brand.name, p.model?.name].filter(Boolean).join(" ");
         rows.push([
           saleRef,
           dt,
@@ -81,7 +80,6 @@ export async function GET() {
           n(totalProfit),
           note,
         ]);
-        void partLabel;
       }
     }
   }
