@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession, verifyRole } from "@/lib/dal";
 import { roundMoney } from "@/lib/credit-math";
+import { planWarrantyRefund } from "@/lib/warranty-math";
 
 const ReturnSchema = z.object({
   quantity: z.coerce.number().int().positive(),
@@ -38,7 +39,16 @@ export async function createReturn(
     where: { id: saleItemId },
     include: {
       returns: { select: { quantity: true } },
-      sale: { select: { id: true, sellerId: true, warrantyFee: true, customerId: true } },
+      sale: {
+        select: {
+          id: true,
+          sellerId: true,
+          warrantyFee: true,
+          customerId: true,
+          // Needed to tell a per-item sale apart from an old whole-bill one.
+          items: { select: { warrantyPerUnit: true } },
+        },
+      },
       product: { select: { name: true, isActive: true, brand: { select: { name: true } } } },
     },
   });
@@ -59,10 +69,17 @@ export async function createReturn(
   const costRecovery = Number(saleItem.unitCost) * quantity;
   const saleRef = saleItem.sale.id.slice(-6).toUpperCase();
   const refundWarranty = formData.get("refundWarranty") === "true";
-  const warrantyToRefund =
-    refundWarranty && returnType === "STOCK_BACK" && saleItem.sale.warrantyFee
-      ? Number(saleItem.sale.warrantyFee)
-      : 0;
+
+  const warrantyPlan = planWarrantyRefund({
+    refundRequested: refundWarranty,
+    returnType,
+    perUnitWarranty: saleItem.warrantyPerUnit ? Number(saleItem.warrantyPerUnit) : 0,
+    saleWarrantyFee: Number(saleItem.sale.warrantyFee ?? 0),
+    saleUsesPerItemWarranty: saleItem.sale.items.some((i) => i.warrantyPerUnit !== null),
+    quantity,
+  });
+  const warrantyToRefund = warrantyPlan.amount;
+  const isLegacyWarranty = warrantyPlan.mode === "legacy";
 
   if (returnType === "STOCK_BACK") {
     if (!saleItem.product.isActive) {
@@ -78,6 +95,7 @@ export async function createReturn(
           reason,
           refundAmount,
           returnType: "STOCK_BACK",
+          warrantyRefund: warrantyToRefund > 0 ? warrantyToRefund : null,
         },
       });
       await tx.product.update({
@@ -93,15 +111,23 @@ export async function createReturn(
           userId: session.userId,
         },
       });
-      // Revenue and cost both reverse; profit shrinks by the original margin on these units
-      // If warranty is being refunded, also clear it from the sale (set to null to prevent double-refund)
+      // Revenue and cost both reverse; profit shrinks by the original margin on these units.
+      //
+      // Warranty: for per-item cover, DECREMENT the sale's running total by just the
+      // units returned, so the other items keep theirs. Only the legacy whole-bill
+      // case still nulls the field — there is no per-unit figure to subtract, and
+      // nulling is what stops it being refunded twice on those old sales.
       await tx.sale.update({
         where: { id: saleItem.sale.id },
         data: {
           totalRevenue: { decrement: refundAmount + warrantyToRefund },
           totalCost: { decrement: costRecovery },
           profit: { decrement: refundAmount + warrantyToRefund - costRecovery },
-          ...(warrantyToRefund > 0 ? { warrantyFee: null } : {}),
+          ...(warrantyToRefund > 0
+            ? isLegacyWarranty
+              ? { warrantyFee: null }
+              : { warrantyFee: { decrement: warrantyToRefund } }
+            : {}),
         },
       });
       // A credit customer is refunded against their tab, not in cash. Deliberately not

@@ -17,6 +17,7 @@ import { BackupSettings } from "./backup-settings";
 import { LicenseSettings } from "./license-settings";
 import { PasswordSettings } from "./password-settings";
 import { SupportSettings } from "./support-settings";
+import { WarrantySettings } from "./warranty-settings";
 
 import type { ComponentProps } from "react";
 import type { LicenseStatus } from "@/lib/license";
@@ -32,6 +33,7 @@ type Props = {
   categories: Category[];
   suppliers: Supplier[];
   users: UsersType;
+  warrantyDefaults: { fee: number; months: number } | null;
   licenseStatus: LicenseStatus | null;
   isAdmin: boolean;
   isAdminOrOwner: boolean;
@@ -39,7 +41,7 @@ type Props = {
 
 type SectionId =
   | "brands" | "models" | "partbrands" | "categories" | "suppliers"
-  | "users" | "backup" | "license" | "password" | "support";
+  | "warranty" | "users" | "backup" | "license" | "password" | "support";
 
 type NavItem = {
   id: SectionId;
@@ -65,6 +67,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "System",
     items: [
+      { id: "warranty", label: "Warranty", description: "Default fee & cover period", icon: ShieldCheck, iconColor: "text-emerald-400", ownerOrAdmin: true },
       { id: "backup",   label: "Backup",   description: "Export & Telegram backup", icon: HardDrive,   iconColor: "text-cyan-400",   ownerOrAdmin: true },
       { id: "license",  label: "License",  description: "App license status",       icon: ShieldCheck, iconColor: "text-green-400",  ownerOrAdmin: true },
       { id: "users",    label: "Users",    description: "Manage staff accounts",    icon: Users,       iconColor: "text-rose-400",   adminOnly: true },
@@ -82,12 +85,12 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const SECTION_TITLES: Record<SectionId, string> = {
   brands: "Brands", models: "Models", partbrands: "Part Brands",
   categories: "Categories", suppliers: "Suppliers", users: "Users",
-  backup: "Backup", license: "License", password: "Password", support: "Support",
+  warranty: "Warranty", backup: "Backup", license: "License", password: "Password", support: "Support",
 };
 
 export function SettingsLayout({
   brands, deletedBrands, categories, suppliers, users,
-  licenseStatus, isAdmin, isAdminOrOwner,
+  warrantyDefaults, licenseStatus, isAdmin, isAdminOrOwner,
 }: Props) {
   const [active, setActive] = useState<SectionId | null>(null);
 
@@ -110,6 +113,7 @@ export function SettingsLayout({
       case "categories": return <CategorySettings categories={categories} isAdmin={isAdminOrOwner} />;
       case "suppliers":  return <SupplierSettings suppliers={suppliers} isAdmin={isAdminOrOwner} />;
       case "users":      return <UserSettings users={users} />;
+      case "warranty":   return warrantyDefaults ? <WarrantySettings defaultFee={warrantyDefaults.fee} defaultMonths={warrantyDefaults.months} isAdmin={isAdminOrOwner} /> : null;
       case "backup":     return <BackupSettings />;
       case "license":    return licenseStatus ? <LicenseSettings status={licenseStatus} isAdmin={isAdmin} /> : null;
       case "password":   return <PasswordSettings />;

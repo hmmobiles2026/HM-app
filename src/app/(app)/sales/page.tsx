@@ -1,12 +1,34 @@
 ﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getCustomerBalanceMap, getSaleCreditMap } from "@/lib/customers";
+import { getWarrantyDefaults } from "@/lib/warranty";
+import { warrantyStatus, warrantyStatusLabel } from "@/lib/warranty-math";
+import { format } from "date-fns";
+import type { Prisma } from "@/generated/prisma/client";
 import { QuickSaleForm } from "./quick-sale-form";
 import { SalesHistory } from "./sales-history";
 import { SupplierReturnsView } from "./supplier-returns-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const VALID_TABS = ["new", "history", "supplier-returns"] as const;
+
+/**
+ * Warranty badge text, resolved server-side so the client never redoes date maths.
+ * Returns null when the line was sold without per-item cover.
+ */
+function warrantyLabelFor(
+  perUnit: Prisma.Decimal | null,
+  until: Date | null
+): { covered: boolean; label: string; untilText: string } | null {
+  if (!perUnit || perUnit.toNumber() <= 0 || !until) return null;
+  const status = warrantyStatus(until);
+  if (status.state === "none") return null;
+  return {
+    covered: status.state === "covered",
+    label: status.state === "covered" ? warrantyStatusLabel(status) : "Warranty expired",
+    untilText: format(new Date(until), "dd MMM yyyy"),
+  };
+}
 
 export default async function SalesPage({
   searchParams,
@@ -21,7 +43,7 @@ export default async function SalesPage({
   const isAdminOrOwner = session.role !== "SELLER";
   const showFinancials = isAdminOrOwner;
 
-  const [rawProducts, rawSales, suppliers, supplierReturns, rawCustomers, balances] =
+  const [rawProducts, rawSales, suppliers, supplierReturns, rawCustomers, balances, warrantyDefaults] =
     await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, stockQty: { gt: 0 } },
@@ -81,6 +103,7 @@ export default async function SalesPage({
       select: { id: true, shopName: true, creditLimit: true },
     }),
     getCustomerBalanceMap(),
+    getWarrantyDefaults(),
   ]);
 
   const customers = rawCustomers.map((c) => ({
@@ -121,6 +144,12 @@ export default async function SalesPage({
       ...item,
       unitPrice: item.unitPrice.toNumber(),
       unitCost: item.unitCost.toNumber(),
+      warrantyPerUnit: item.warrantyPerUnit ? item.warrantyPerUnit.toNumber() : null,
+      // Resolved here on the server, not in the client component. warrantyStatus uses
+      // local-time day arithmetic, so computing it during render would produce one
+      // answer in the server's UTC and another in the browser's Asia/Colombo — a
+      // hydration mismatch for any item sitting near a day boundary.
+      warranty: warrantyLabelFor(item.warrantyPerUnit, item.warrantyUntil),
       returnedQty: item.returns.reduce((sum, r) => sum + r.quantity, 0),
     })),
   }));
@@ -144,7 +173,7 @@ export default async function SalesPage({
           )}
         </TabsList>
         <TabsContent value="new">
-          <QuickSaleForm products={products} customers={customers} />
+          <QuickSaleForm products={products} customers={customers} warrantyDefaults={warrantyDefaults} />
         </TabsContent>
         <TabsContent value="history">
           <SalesHistory sales={sales} showFinancials={showFinancials} suppliers={suppliers} />

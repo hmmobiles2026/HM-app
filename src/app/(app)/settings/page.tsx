@@ -2,6 +2,7 @@ import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getLicenseStatus } from "@/lib/license";
 import { SettingsLayout } from "./settings-layout";
+import { getWarrantyDefaults } from "@/lib/warranty";
 
 export default async function SettingsPage() {
   const session = await verifySession();
@@ -11,7 +12,8 @@ export default async function SettingsPage() {
 
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
-  const [brands, deletedBrands, categories, suppliers, users, licenseStatus] = await Promise.all([
+  const [brands, deletedBrands, categories, suppliers, users, warrantyDefaults, licenseStatus] =
+    await Promise.all([
     isAdminOrOwner
       ? prisma.brand.findMany({
           where: { deletedAt: null },
@@ -44,6 +46,7 @@ export default async function SettingsPage() {
       : [],
     isAdminOrOwner ? prisma.supplier.findMany({ orderBy: { name: "asc" } }) : [],
     isAdmin ? prisma.user.findMany({ orderBy: { name: "asc" } }) : [],
+    isAdminOrOwner ? getWarrantyDefaults() : null,
     isAdminOrOwner ? getLicenseStatus() : null,
   ]);
 
@@ -56,6 +59,7 @@ export default async function SettingsPage() {
         categories={categories}
         suppliers={suppliers}
         users={users}
+        warrantyDefaults={warrantyDefaults}
         licenseStatus={licenseStatus}
         isAdmin={isAdmin}
         isAdminOrOwner={isAdminOrOwner}

@@ -269,3 +269,40 @@ export async function changePassword(
 
   return { success: "Password changed successfully." };
 }
+
+// ── Warranty defaults ────────────────────────────────────────────────────────
+
+// Only the starting values for the sale form — a seller can still change the fee or
+// period on any individual line. Stored as a single row.
+export async function updateWarrantyDefaults(
+  _: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+
+  const fee = Number(formData.get("defaultFee"));
+  const months = Number(formData.get("defaultMonths"));
+
+  if (!Number.isFinite(fee) || fee < 0) return { error: "Fee must be 0 or more." };
+  if (!Number.isInteger(months) || months < 1 || months > 60) {
+    return { error: "Period must be between 1 and 60 months." };
+  }
+
+  const existing = await prisma.warrantyConfig.findFirst({ select: { id: true } });
+  if (existing) {
+    await prisma.warrantyConfig.update({
+      where: { id: existing.id },
+      data: { defaultFee: fee, defaultMonths: months },
+    });
+  } else {
+    await prisma.warrantyConfig.create({
+      data: { defaultFee: fee, defaultMonths: months },
+    });
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/sales");
+  return {
+    success: `Default warranty set to LKR ${fee.toLocaleString("en-LK")} for ${months} month${months > 1 ? "s" : ""}.`,
+  };
+}

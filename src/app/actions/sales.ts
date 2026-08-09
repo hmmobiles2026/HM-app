@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/dal";
 import { notifyLowStock, notifySale } from "@/lib/telegram";
 import { roundMoney } from "@/lib/credit-math";
+import { warrantyUntilFrom } from "@/lib/warranty-math";
 import { after } from "next/server";
 
 const SaleItemSchema = z.object({
@@ -29,6 +30,8 @@ export async function createSale(
 
   const rawItems: { productId: string; quantity: number }[] = [];
   const customPrices: Record<string, number> = {};
+  // Warranty is chosen per cart line and keyed by product, exactly like customPrices.
+  const warrantyByProduct: Record<string, { perUnit: number; months: number }> = {};
   const keys = [...new Set([...formData.keys()].filter((k) => k.startsWith("productId_")))];
 
   for (const key of keys) {
@@ -36,9 +39,17 @@ export async function createSale(
     const productId = formData.get(`productId_${idx}`) as string;
     const quantity = Number(formData.get(`quantity_${idx}`));
     const priceVal = Number(formData.get(`price_${idx}`));
+    const warrantyVal = Number(formData.get(`warranty_${idx}`) ?? 0);
+    const warrantyMonthsVal = Number(formData.get(`warrantyMonths_${idx}`) ?? 0);
     if (productId && quantity > 0) {
       rawItems.push({ productId, quantity });
       if (priceVal > 0) customPrices[productId] = priceVal;
+      if (warrantyVal > 0 && warrantyMonthsVal > 0) {
+        warrantyByProduct[productId] = {
+          perUnit: roundMoney(warrantyVal),
+          months: Math.min(60, Math.max(1, Math.round(warrantyMonthsVal))),
+        };
+      }
     }
   }
 
@@ -59,8 +70,6 @@ export async function createSale(
   }
 
   const { items, note } = parsed.data;
-  const warrantyFeeRaw = Number(formData.get("warrantyFee") ?? 0);
-  const warrantyFee = warrantyFeeRaw >= 1 ? warrantyFeeRaw : 0;
 
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) }, isActive: true },
@@ -89,6 +98,8 @@ export async function createSale(
 
   let totalRevenue = 0;
   let totalCost = 0;
+  let warrantyFee = 0;
+  const soldAt = new Date();
 
   const saleItems = items.map((item) => {
     const product = products.find((p) => p.id === item.productId)!;
@@ -96,9 +107,26 @@ export async function createSale(
     const unitCost = Number(product.costPrice);
     totalRevenue += unitPrice * item.quantity;
     totalCost += unitCost * item.quantity;
-    return { productId: item.productId, quantity: item.quantity, unitPrice, unitCost };
+
+    // Warranty is priced per unit and stamped with its own expiry, so it survives any
+    // later change to the shop default.
+    const w = warrantyByProduct[item.productId];
+    warrantyFee += w ? w.perUnit * item.quantity : 0;
+
+    return {
+      productId: item.productId,
+      quantity: item.quantity,
+      unitPrice,
+      unitCost,
+      warrantyPerUnit: w ? w.perUnit : null,
+      warrantyMonths: w ? w.months : null,
+      warrantyUntil: w ? warrantyUntilFrom(soldAt, w.months) : null,
+    };
   });
 
+  // Sale.warrantyFee stays as the SUM of the line warranties — every existing report,
+  // backup and analytics query reads this field and must keep seeing the same thing.
+  warrantyFee = roundMoney(warrantyFee);
   totalRevenue += warrantyFee;
   const profit = totalRevenue - totalCost;
 

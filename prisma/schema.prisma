@@ -285,6 +285,16 @@ model SaleItem {
   unitPrice Decimal @db.Decimal(10, 2)
   unitCost  Decimal @db.Decimal(10, 2)
 
+  // Warranty is sold PER UNIT, like unitPrice and unitCost. Three covered displays
+  // means warrantyPerUnit x 3; returning one refunds warrantyPerUnit x 1.
+  // Null on every sale made before per-item warranty existed — those carry a single
+  // whole-bill figure in Sale.warrantyFee instead, and returns still honour that.
+  warrantyPerUnit Decimal?  @db.Decimal(10, 2)
+  warrantyMonths  Int?
+  // Stamped once when the sale is made, so "is this still covered?" is a plain date
+  // comparison that cannot shift if the default period is changed later.
+  warrantyUntil   DateTime?
+
   returns   SaleReturn[]
 
   @@index([saleId])
@@ -311,12 +321,28 @@ model SaleReturn {
   supplier       Supplier?             @relation(fields: [supplierId], references: [id])
   supplierId     String?
   costRecovery   Decimal?              @db.Decimal(10, 2)
+  // Warranty actually handed back on THIS return. Recording it per return is what
+  // makes double-refunding impossible without the old trick of nulling the sale's
+  // whole warranty figure, which used to wipe cover from the other items too.
+  warrantyRefund Decimal?              @db.Decimal(10, 2)
   supplierStatus SupplierReturnStatus?
   resolvedAt     DateTime?
   createdAt      DateTime              @default(now())
 
   @@index([saleItemId])
   @@index([supplierId])
+}
+
+// ─── Warranty defaults ───────────────────────────────────────────────────────
+
+// Single row, edited from Settings. Only supplies the values the sale form starts
+// with — the seller can still change fee and period on any line. If the row is
+// missing, the code falls back to LKR 200 / 3 months.
+model WarrantyConfig {
+  id            String   @id @default(cuid())
+  defaultFee    Decimal  @default(200) @db.Decimal(10, 2)
+  defaultMonths Int      @default(3)
+  updatedAt     DateTime @updatedAt
 }
 
 // ─── Licensing ───────────────────────────────────────────────────────────────

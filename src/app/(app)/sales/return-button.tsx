@@ -17,18 +17,36 @@ export function ReturnButton({
   productName,
   suppliers,
   saleWarrantyFee,
+  itemWarrantyPerUnit,
+  saleUsesPerItemWarranty = false,
 }: {
   saleItemId: string;
   maxQty: number;
   productName: string;
   suppliers: Supplier[];
   saleWarrantyFee?: number | null;
+  /** Per-unit warranty on this line. Null on sales made before per-item warranty. */
+  itemWarrantyPerUnit?: number | null;
+  /** True when ANY line on this sale carries per-item cover. */
+  saleUsesPerItemWarranty?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [returnType, setReturnType] = useState<"STOCK_BACK" | "SUPPLIER_RETURN">("STOCK_BACK");
   const [refundWarranty, setRefundWarranty] = useState(false);
+  const [qty, setQty] = useState(1);
   const action = createReturn.bind(null, saleItemId);
   const [state, formAction, pending] = useActionState(action, undefined);
+
+  // Per-item cover refunds only the units coming back. Older sales carry a single
+  // whole-bill figure and still refund all of it, exactly as they used to.
+  //
+  // Must mirror planWarrantyRefund exactly: on a per-item sale, a line with no cover
+  // offers nothing — the sale's warranty total belongs to the other lines.
+  const perUnit = itemWarrantyPerUnit ?? 0;
+  const isLegacySale = !saleUsesPerItemWarranty;
+  const warrantyAmount =
+    perUnit > 0 ? perUnit * qty : isLegacySale ? (saleWarrantyFee ?? 0) : 0;
+  const hasWarranty = warrantyAmount > 0;
 
   if (maxQty <= 0) return null;
 
@@ -99,7 +117,12 @@ export function ReturnButton({
                     type="number"
                     min={1}
                     max={maxQty}
-                    defaultValue={1}
+                    value={qty}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setQty(Number.isFinite(v) ? Math.min(maxQty, Math.max(1, v)) : 1);
+                    }}
                     className="h-10 w-20 bg-slate-800 border-slate-700 text-white text-sm rounded-xl"
                   />
                 </div>
@@ -137,7 +160,7 @@ export function ReturnButton({
               )}
             </div>
 
-            {returnType === "STOCK_BACK" && saleWarrantyFee && saleWarrantyFee > 0 && (
+            {returnType === "STOCK_BACK" && hasWarranty && (
               <button
                 type="button"
                 onClick={() => setRefundWarranty((v) => !v)}
@@ -147,11 +170,23 @@ export function ReturnButton({
                     : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600"
                 }`}
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 min-w-0 text-left">
                   <ShieldCheck className="h-4 w-4 shrink-0" />
-                  <span>Refund warranty fee</span>
-                  <span className="font-semibold tabular-nums">
-                    LKR {saleWarrantyFee.toLocaleString("en-LK")}
+                  <span className="min-w-0">
+                    <span>Refund warranty fee</span>{" "}
+                    <span className="font-semibold tabular-nums">
+                      LKR {warrantyAmount.toLocaleString("en-LK")}
+                    </span>
+                    {perUnit > 0 && qty > 1 && (
+                      <span className="block text-xs opacity-70">
+                        {qty} × LKR {perUnit.toLocaleString("en-LK")}
+                      </span>
+                    )}
+                    {perUnit === 0 && (
+                      <span className="block text-xs opacity-70">
+                        Whole-bill warranty (older sale)
+                      </span>
+                    )}
                   </span>
                 </span>
                 <span className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 transition-colors ${

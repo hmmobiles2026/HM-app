@@ -8,7 +8,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  const [brands, categories, products, sales, movements, saleReturns] = await Promise.all([
+  const [brands, categories, products, sales, movements, saleReturns, customers, ledger] =
+    await Promise.all([
     prisma.brand.findMany({ include: { models: true } }),
     prisma.category.findMany(),
     prisma.product.findMany({
@@ -29,6 +30,13 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.saleReturn.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.customer.findMany({ orderBy: { shopName: "asc" } }),
+    // The ledger IS the customer balances — without it a restore would lose every
+    // record of who owes what.
+    prisma.customerLedger.findMany({
+      include: { customer: { select: { shopName: true } }, createdBy: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   const backup = {
@@ -71,6 +79,11 @@ export async function GET() {
           quantity: i.quantity,
           unitPrice: i.unitPrice.toNumber(),
           unitCost: i.unitCost.toNumber(),
+          // Without these a restore would lose every per-item warranty, leaving no
+          // record of what was covered or until when.
+          warrantyPerUnit: i.warrantyPerUnit?.toNumber() ?? null,
+          warrantyMonths: i.warrantyMonths,
+          warrantyUntil: i.warrantyUntil?.toISOString() ?? null,
         })),
       })),
       stockMovements: movements.map((m) => ({
@@ -89,9 +102,34 @@ export async function GET() {
         returnType: r.returnType,
         refundAmount: r.refundAmount.toNumber(),
         costRecovery: r.costRecovery?.toNumber() ?? null,
+        warrantyRefund: r.warrantyRefund?.toNumber() ?? null,
         supplierStatus: r.supplierStatus ?? null,
         resolvedAt: r.resolvedAt?.toISOString() ?? null,
         createdAt: r.createdAt.toISOString(),
+      })),
+      customers: customers.map((c) => ({
+        id: c.id,
+        shopName: c.shopName,
+        ownerName: c.ownerName,
+        phone: c.phone,
+        address: c.address,
+        creditLimit: c.creditLimit?.toNumber() ?? null,
+        note: c.note,
+        isActive: c.isActive,
+        createdAt: c.createdAt.toISOString(),
+      })),
+      customerLedger: ledger.map((l) => ({
+        id: l.id,
+        customerId: l.customerId,
+        customer: l.customer.shopName,
+        type: l.type,
+        amount: l.amount.toNumber(),
+        saleId: l.saleId,
+        returnId: l.returnId,
+        method: l.method,
+        note: l.note,
+        createdBy: l.createdBy.name,
+        createdAt: l.createdAt.toISOString(),
       })),
     },
   };

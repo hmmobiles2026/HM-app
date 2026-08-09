@@ -7,6 +7,9 @@ import { Receipt, ChevronDown, ChevronUp, ShieldCheck, Store } from "lucide-reac
 import { ReturnButton } from "./return-button";
 
 type SaleItem = {
+  warrantyPerUnit: number | null;
+  /** Resolved on the server — see warrantyLabelFor in page.tsx. */
+  warranty: { covered: boolean; label: string; untilText: string } | null;
   id: string;
   quantity: number;
   unitPrice: number;
@@ -63,6 +66,30 @@ const gradeLabel: Record<string, string> = {
 };
 
 /**
+ * Per-item warranty and whether it is still in force. Answers the question that
+ * actually matters when a customer walks back in with a faulty part.
+ *
+ * The text is computed on the server; doing the day arithmetic here would disagree
+ * with the server render (UTC vs Asia/Colombo) and trip a hydration mismatch.
+ */
+function WarrantyBadge({ item }: { item: SaleItem }) {
+  if (!item.warranty) return null;
+  const { covered, label, untilText } = item.warranty;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 mt-0.5 text-xs px-1.5 py-0.5 rounded-full ${
+        covered ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700/60 text-slate-400"
+      }`}
+      title={`Warranty until ${untilText}`}
+    >
+      <ShieldCheck className="h-3 w-3 shrink-0" />
+      {label}
+      <span className="opacity-70">· {untilText}</span>
+    </span>
+  );
+}
+
+/**
  * The badge reads "Credit X at sale", never "unpaid" — see Sale.creditAtSale.
  */
 function CustomerChip({ sale }: { sale: Sale }) {
@@ -88,6 +115,9 @@ function CustomerChip({ sale }: { sale: Sale }) {
 
 function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancials: boolean; suppliers: { id: string; name: string }[] }) {
   const [expanded, setExpanded] = useState(false);
+  // Distinguishes a per-item sale from an old whole-bill one, so an uncovered line
+  // never offers to refund another line's warranty.
+  const saleUsesPerItemWarranty = sale.items.some((i) => i.warrantyPerUnit !== null);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
@@ -191,7 +221,10 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
                               <span className="text-xs font-bold text-slate-400">{item.product.name.charAt(0)}</span>
                             </div>
                           )}
-                          <p className="text-white font-medium truncate max-w-xs">{label}</p>
+                          <div className="min-w-0">
+                            <p className="text-white font-medium truncate max-w-xs">{label}</p>
+                            <WarrantyBadge item={item} />
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -212,6 +245,8 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
                           productName={item.product.name}
                           suppliers={suppliers}
                           saleWarrantyFee={sale.warrantyFee}
+                          itemWarrantyPerUnit={item.warrantyPerUnit}
+                          saleUsesPerItemWarranty={saleUsesPerItemWarranty}
                         />
                       </td>
                     </tr>
@@ -277,10 +312,11 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
                         </Badge>
                         <span className="text-xs text-slate-400">× {item.quantity}</span>
                       </div>
+                      <WarrantyBadge item={item} />
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-white tabular-nums">{lkr(Number(item.unitPrice) * item.quantity)}</p>
-                      <ReturnButton saleItemId={item.id} maxQty={item.quantity - item.returnedQty} productName={item.product.name} suppliers={suppliers} saleWarrantyFee={sale.warrantyFee} />
+                      <ReturnButton saleItemId={item.id} maxQty={item.quantity - item.returnedQty} productName={item.product.name} suppliers={suppliers} saleWarrantyFee={sale.warrantyFee} itemWarrantyPerUnit={item.warrantyPerUnit} saleUsesPerItemWarranty={saleUsesPerItemWarranty} />
                     </div>
                   </div>
                 </div>

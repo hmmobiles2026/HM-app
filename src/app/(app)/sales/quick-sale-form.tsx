@@ -16,6 +16,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { Product, Brand, PhoneModel, PartBrand, Category } from "@/generated/prisma/client";
+import { addMonths } from "date-fns";
+import { WARRANTY_MONTH_OPTIONS } from "@/lib/warranty-math";
 
 export type CustomerOption = {
   id: string;
@@ -37,6 +39,11 @@ type CartItem = {
   product: ProductWithRelations;
   quantity: number;
   customPrice: number;
+  // Warranty is per unit, so 3 covered displays cost 3 x the fee and returning one
+  // refunds one. Kept as a string while typing, like the price inputs.
+  warrantyOn: boolean;
+  warrantyFee: string;
+  warrantyMonths: number;
 };
 
 const gradeLabel: Record<string, string> = {
@@ -56,17 +63,17 @@ const gradeBadge: Record<string, string> = {
 export function QuickSaleForm({
   products,
   customers,
+  warrantyDefaults,
 }: {
   products: ProductWithRelations[];
   customers: CustomerOption[];
+  warrantyDefaults: { fee: number; months: number };
 }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [qty, setQty] = useState(1);
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [totalInput, setTotalInput] = useState("");
-  const [warrantyEnabled, setWarrantyEnabled] = useState(false);
-  const [warrantyInput, setWarrantyInput] = useState("200");
   const [customerId, setCustomerId] = useState("");
   const [paidInput, setPaidInput] = useState("");
   const [state, formAction, pending] = useActionState(createSale, undefined);
@@ -85,7 +92,17 @@ export function QuickSaleForm({
       setCart(cart.map((c) => c.product.id === selectedId ? { ...c, quantity: c.quantity + qty } : c));
     } else {
       const price = Number(product.sellingPrice);
-      setCart([...cart, { product, quantity: qty, customPrice: price }]);
+      setCart([
+        ...cart,
+        {
+          product,
+          quantity: qty,
+          customPrice: price,
+          warrantyOn: false,
+          warrantyFee: String(warrantyDefaults.fee),
+          warrantyMonths: warrantyDefaults.months,
+        },
+      ]);
       setPriceInputs((prev) => ({ ...prev, [product.id]: String(price) }));
     }
     setSelectedId("");
@@ -108,13 +125,26 @@ export function QuickSaleForm({
     setCart(cart.map((c) => c.product.id === id ? { ...c, customPrice: price } : c));
   }
 
+  function patchItem(id: string, patch: Partial<CartItem>) {
+    setCart(cart.map((c) => (c.product.id === id ? { ...c, ...patch } : c)));
+  }
+
+  /** Warranty on one line: the per-unit fee times the quantity covered. */
+  function lineWarranty(c: CartItem): number {
+    if (!c.warrantyOn) return 0;
+    const fee = Number(c.warrantyFee);
+    return fee > 0 ? fee * c.quantity : 0;
+  }
+
   const subtotal = cart.reduce((s, c) => {
     const live = Number(priceInputs[c.product.id]);
     return s + (live >= 1 ? live : c.customPrice) * c.quantity;
   }, 0);
   const overrideVal = Number(totalInput);
   const productsTotal = totalInput !== "" && overrideVal >= 1 && overrideVal < subtotal ? overrideVal : subtotal;
-  const warrantyFee = warrantyEnabled ? Math.max(0, Number(warrantyInput) || 0) : 0;
+  // Sum of the per-line warranties. Never discounted by the sale-total override.
+  const warrantyFee = cart.reduce((s, c) => s + lineWarranty(c), 0);
+  const warrantyItemCount = cart.filter((c) => lineWarranty(c) > 0).length;
   const finalTotal = productsTotal + warrantyFee;
   const discount = subtotal - productsTotal;
   const scale = subtotal > 0 ? productsTotal / subtotal : 1;
@@ -337,6 +367,85 @@ export function QuickSaleForm({
                     LKR {(effectiveUnitPrice * item.quantity).toLocaleString("en-LK")}
                   </p>
                 </div>
+
+                {/* Row 3: per-item warranty */}
+                <div className="pt-1 border-t border-slate-800">
+                  {!item.warrantyOn ? (
+                    <button
+                      type="button"
+                      onClick={() => patchItem(item.product.id, { warrantyOn: true })}
+                      className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-400 transition-colors py-1"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Add warranty
+                    </button>
+                  ) : (
+                    <div className="space-y-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2.5">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => patchItem(item.product.id, { warrantyOn: false })}
+                          className="flex items-center gap-1.5 text-xs font-medium text-emerald-300 shrink-0"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Warranty
+                        </button>
+
+                        <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-lg px-2 h-8 ml-auto">
+                          <span className="text-xs text-slate-400 shrink-0">LKR</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.warrantyFee}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              patchItem(item.product.id, { warrantyFee: e.target.value })
+                            }
+                            className="bg-transparent text-xs text-white font-medium outline-none w-14 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => patchItem(item.product.id, { warrantyOn: false })}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
+                          aria-label="Remove warranty"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {WARRANTY_MONTH_OPTIONS.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => patchItem(item.product.id, { warrantyMonths: m })}
+                            className={`flex-1 h-7 rounded-lg text-xs font-medium transition-colors ${
+                              item.warrantyMonths === m
+                                ? "bg-emerald-600 text-white"
+                                : "bg-slate-800 text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            {m} mo
+                          </button>
+                        ))}
+                      </div>
+
+                      <p className="text-xs text-emerald-400/80">
+                        {item.quantity > 1
+                          ? `${item.quantity} × LKR ${(Number(item.warrantyFee) || 0).toLocaleString("en-LK")} = LKR ${lineWarranty(item).toLocaleString("en-LK")} · `
+                          : ""}
+                        covered until{" "}
+                        {addMonths(new Date(), item.warrantyMonths).toLocaleDateString("en-LK", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -379,50 +488,20 @@ export function QuickSaleForm({
               </div>
             </div>
 
-            {/* Warranty row */}
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setWarrantyEnabled((v) => !v)}
-              onKeyDown={(e) => e.key === " " && setWarrantyEnabled((v) => !v)}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 -mx-3 cursor-pointer transition-colors select-none ${
-                warrantyEnabled
-                  ? "bg-emerald-500/10 border border-emerald-500/30"
-                  : "hover:bg-slate-800 border border-transparent"
-              }`}
-            >
-              {/* Radio circle */}
-              <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                warrantyEnabled ? "border-emerald-400" : "border-slate-600"
-              }`}>
-                {warrantyEnabled && <div className="h-2.5 w-2.5 rounded-full bg-emerald-400" />}
+            {/* Warranty is set per item in the cart; this is just the roll-up. */}
+            {warrantyFee > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Warranty ({warrantyItemCount} item{warrantyItemCount > 1 ? "s" : ""})
+                </span>
+                <span className="text-emerald-400 tabular-nums">
+                  +LKR {warrantyFee.toLocaleString("en-LK")}
+                </span>
               </div>
+            )}
 
-              <ShieldCheck className={`h-4 w-4 shrink-0 ${warrantyEnabled ? "text-emerald-400" : "text-slate-500"}`} />
-              <span className={`text-sm font-medium flex-1 ${warrantyEnabled ? "text-emerald-300" : "text-slate-400"}`}>
-                Warranty
-              </span>
-
-              {warrantyEnabled ? (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-xl px-2.5 h-9"
-                >
-                  <span className="text-xs text-slate-400 shrink-0">LKR</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={warrantyInput}
-                    onChange={(e) => setWarrantyInput(e.target.value)}
-                    className="bg-transparent text-sm text-white font-medium outline-none w-20 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-              ) : (
-                <span className="text-xs text-slate-600">LKR 200</span>
-              )}
-            </div>
-
-            {warrantyEnabled && warrantyFee > 0 && (
+            {warrantyFee > 0 && (
               <div className="flex items-center justify-between text-sm border-t border-slate-800 pt-2">
                 <p className="text-white font-semibold">Grand Total</p>
                 <p className="text-white font-bold text-xl tabular-nums">LKR {finalTotal.toLocaleString("en-LK")}</p>
@@ -528,10 +607,21 @@ export function QuickSaleForm({
                     <input type="hidden" name={`productId_${i}`} value={item.product.id} />
                     <input type="hidden" name={`quantity_${i}`} value={item.quantity} />
                     <input type="hidden" name={`price_${i}`} value={Number((effectivePrice * scale).toFixed(2))} />
+                    {/* Per-unit warranty. Not scaled by the discount — the cover is
+                        priced separately from the goods. */}
+                    <input
+                      type="hidden"
+                      name={`warranty_${i}`}
+                      value={item.warrantyOn ? Number(item.warrantyFee) || 0 : 0}
+                    />
+                    <input
+                      type="hidden"
+                      name={`warrantyMonths_${i}`}
+                      value={item.warrantyOn ? item.warrantyMonths : 0}
+                    />
                   </div>
                 );
               })}
-              <input type="hidden" name="warrantyFee" value={warrantyFee} />
               <Input name="note" placeholder="Note (optional)"
                 className="h-11 rounded-xl bg-slate-800 border-slate-700 text-white placeholder:text-slate-500" />
               {state?.error && (
