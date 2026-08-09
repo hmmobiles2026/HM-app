@@ -45,6 +45,7 @@ async function getDashboardData(role: string) {
     lastWeekAgg,
     monthlySummary,
     receivables,
+    yesterdaySales,
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: { gte: today } },
@@ -181,6 +182,13 @@ async function getDashboardData(role: string) {
     `,
     // Customer credit. Sits alongside the figures above and never alters them.
     getReceivablesSummary(),
+    // Yesterday, for the change shown on today's tiles. Bounded on both sides so it
+    // is strictly yesterday, not "everything before today".
+    prisma.sale.aggregate({
+      where: { createdAt: { gte: subDays(today, 1), lt: today } },
+      _sum: { totalRevenue: true, profit: true },
+      _count: true,
+    }),
   ]);
 
   return {
@@ -197,6 +205,11 @@ async function getDashboardData(role: string) {
         totalRevenue: weekSales._sum.totalRevenue?.toNumber() ?? 0,
         profit: weekSales._sum.profit?.toNumber() ?? 0,
       },
+    },
+    yesterdaySales: {
+      totalRevenue: yesterdaySales._sum.totalRevenue?.toNumber() ?? 0,
+      profit: yesterdaySales._sum.profit?.toNumber() ?? 0,
+      count: yesterdaySales._count,
     },
     totalProducts,
     lowStockProducts,
