@@ -30,6 +30,7 @@ model User {
   stockMovements   StockMovement[]
   refreshTokens    RefreshToken[]
   telegramSessions TelegramSession[]
+  ledgerEntries    CustomerLedger[]
 }
 
 model RefreshToken {
@@ -181,12 +182,87 @@ model StockMovement {
   createdAt  DateTime     @default(now())
 }
 
+// ─── Customers (Credit / Accounts Receivable) ────────────────────────────────
+
+// Customers are other mobile phone shops that buy on credit and settle over time.
+// Their outstanding balance is NEVER stored as a column — it is always derived from
+// CustomerLedger so it cannot drift out of sync. See src/lib/customers.ts.
+model Customer {
+  id          String    @id @default(cuid())
+  // Unique, matching Supplier.name. Two records for the same shop would split that
+  // shop's debt across both and the real total would be invisible. If two genuinely
+  // different shops share a name, distinguish them ("City Cell - Kandy").
+  shopName    String    @unique
+  ownerName   String?
+  phone       String?
+  address     String?
+  creditLimit Decimal?  @db.Decimal(10, 2)
+  note        String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sales  Sale[]
+  ledger CustomerLedger[]
+
+  // No @@index([shopName]) — @unique already creates one.
+  @@index([isActive])
+}
+
+enum LedgerType {
+  CHARGE // credit sale — increases what they owe
+  PAYMENT // money received — decreases
+  RETURN_CREDIT // goods returned — decreases
+  ADJUSTMENT // manual owner correction; amount is SIGNED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+  CHEQUE
+  OTHER
+}
+
+// One row per money event against a customer. Append-only in spirit: corrections are
+// made with an ADJUSTMENT row, not by editing history. The only deletion case is
+// cancelSupplierReturn, which must remove the RETURN_CREDIT row it created.
+model CustomerLedger {
+  id         String         @id @default(cuid())
+  customer   Customer       @relation(fields: [customerId], references: [id])
+  customerId String
+  type       LedgerType
+  // Always positive EXCEPT for ADJUSTMENT, where a negative value reduces the debt.
+  amount     Decimal        @db.Decimal(10, 2)
+  // saleId and returnId are deliberately plain columns, NOT foreign keys.
+  // cancelSupplierReturn() deletes its SaleReturn row outright. A real relation would
+  // either block that delete (RESTRICT) or silently drop the ledger row (CASCADE) —
+  // and silently dropping it would leave the customer credited for a return that no
+  // longer exists. Reversing it must be an explicit, visible step in the action.
+  saleId     String?
+  returnId   String?
+  method     PaymentMethod?
+  note       String?
+  createdBy  User           @relation(fields: [userId], references: [id])
+  userId     String
+  createdAt  DateTime       @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([saleId])
+  @@index([returnId])
+  // Serves the "payments collected this month" dashboard aggregate.
+  @@index([type, createdAt])
+}
+
 // ─── Sales ───────────────────────────────────────────────────────────────────
 
 model Sale {
   id           String   @id @default(cuid())
   seller       User     @relation(fields: [sellerId], references: [id])
   sellerId     String
+  // Nullable forever. null = walk-in cash sale, which is every sale made before the
+  // credit feature existed. Making this required would break every historical row.
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  customerId   String?
   totalRevenue Decimal  @db.Decimal(10, 2)
   totalCost    Decimal  @db.Decimal(10, 2)
   profit       Decimal  @db.Decimal(10, 2)
@@ -195,6 +271,8 @@ model Sale {
   createdAt    DateTime @default(now())
 
   items SaleItem[]
+
+  @@index([customerId])
 }
 
 model SaleItem {

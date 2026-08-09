@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession, verifyRole } from "@/lib/dal";
+import { roundMoney } from "@/lib/credit-math";
 
 const ReturnSchema = z.object({
   quantity: z.coerce.number().int().positive(),
@@ -37,7 +38,7 @@ export async function createReturn(
     where: { id: saleItemId },
     include: {
       returns: { select: { quantity: true } },
-      sale: { select: { id: true, sellerId: true, warrantyFee: true } },
+      sale: { select: { id: true, sellerId: true, warrantyFee: true, customerId: true } },
       product: { select: { name: true, isActive: true, brand: { select: { name: true } } } },
     },
   });
@@ -67,8 +68,10 @@ export async function createReturn(
     if (!saleItem.product.isActive) {
       return { error: "This product has been deleted and cannot be restocked." };
     }
-    await prisma.$transaction([
-      prisma.saleReturn.create({
+    // Callback form so the customer credit can reference the new return's id inside
+    // the same transaction. Same operations, same atomicity as the previous array form.
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.saleReturn.create({
         data: {
           saleItemId,
           quantity,
@@ -76,12 +79,12 @@ export async function createReturn(
           refundAmount,
           returnType: "STOCK_BACK",
         },
-      }),
-      prisma.product.update({
+      });
+      await tx.product.update({
         where: { id: saleItem.productId },
         data: { stockQty: { increment: quantity } },
-      }),
-      prisma.stockMovement.create({
+      });
+      await tx.stockMovement.create({
         data: {
           productId: saleItem.productId,
           type: "RETURN",
@@ -89,10 +92,10 @@ export async function createReturn(
           note: `Return from sale #${saleRef} — ${reason}`,
           userId: session.userId,
         },
-      }),
+      });
       // Revenue and cost both reverse; profit shrinks by the original margin on these units
       // If warranty is being refunded, also clear it from the sale (set to null to prevent double-refund)
-      prisma.sale.update({
+      await tx.sale.update({
         where: { id: saleItem.sale.id },
         data: {
           totalRevenue: { decrement: refundAmount + warrantyToRefund },
@@ -100,18 +103,38 @@ export async function createReturn(
           profit: { decrement: refundAmount + warrantyToRefund - costRecovery },
           ...(warrantyToRefund > 0 ? { warrantyFee: null } : {}),
         },
-      }),
-    ]);
+      });
+      // A credit customer is refunded against their tab, not in cash. Deliberately not
+      // filtered on isActive — the debt is real whether or not the shop is still trading.
+      if (saleItem.sale.customerId) {
+        await tx.customerLedger.create({
+          data: {
+            customerId: saleItem.sale.customerId,
+            type: "RETURN_CREDIT",
+            // The warranty fee reverses with the sale, so it is credited back too.
+            amount: roundMoney(refundAmount + warrantyToRefund),
+            saleId: saleItem.sale.id,
+            returnId: created.id,
+            note: `Return on #${saleRef} — ${reason}`,
+            userId: session.userId,
+          },
+        });
+      }
+    });
     revalidatePath("/sales");
     revalidatePath("/stock");
+    if (saleItem.sale.customerId) {
+      revalidatePath("/customers");
+      revalidatePath(`/customers/${saleItem.sale.customerId}`);
+    }
     const warrantyNote = warrantyToRefund > 0 ? ` Warranty fee (LKR ${warrantyToRefund.toLocaleString("en-LK")}) also reversed.` : "";
     return { success: `Returned ${quantity} × ${saleItem.product.name}. Stock restored.${warrantyNote}` };
   }
 
   // SUPPLIER_RETURN — stock stays out, track pending claim
   // Revenue reverses; cost stays (item is gone, supplier owes us costRecovery separately)
-  await prisma.$transaction([
-    prisma.saleReturn.create({
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.saleReturn.create({
       data: {
         saleItemId,
         quantity,
@@ -122,17 +145,36 @@ export async function createReturn(
         costRecovery,
         supplierStatus: "PENDING",
       },
-    }),
-    prisma.sale.update({
+    });
+    await tx.sale.update({
       where: { id: saleItem.sale.id },
       data: {
         totalRevenue: { decrement: refundAmount },
         profit: { decrement: refundAmount },
       },
-    }),
-  ]);
+    });
+    // The customer is credited either way. Whether we later recover the cost from the
+    // supplier is a separate matter that does not affect what this shop is owed.
+    if (saleItem.sale.customerId) {
+      await tx.customerLedger.create({
+        data: {
+          customerId: saleItem.sale.customerId,
+          type: "RETURN_CREDIT",
+          amount: roundMoney(refundAmount),
+          saleId: saleItem.sale.id,
+          returnId: created.id,
+          note: `Defective return on #${saleRef} — ${reason}`,
+          userId: session.userId,
+        },
+      });
+    }
+  });
 
   revalidatePath("/sales");
+  if (saleItem.sale.customerId) {
+    revalidatePath("/customers");
+    revalidatePath(`/customers/${saleItem.sale.customerId}`);
+  }
   return { success: `Supplier return recorded. LKR ${costRecovery.toLocaleString("en-LK")} pending from supplier.` };
 }
 
@@ -155,14 +197,25 @@ export async function cancelSupplierReturn(id: string): Promise<ReturnState> {
 
   const r = await prisma.saleReturn.findUnique({
     where: { id },
-    include: { saleItem: { select: { sale: { select: { id: true } } } } },
+    include: {
+      saleItem: { select: { sale: { select: { id: true, customerId: true } } } },
+    },
   });
 
   if (!r) return { error: "Return not found." };
   if (r.returnType !== "SUPPLIER_RETURN") return { error: "Cannot cancel a non-supplier return here." };
   if (r.supplierStatus === "RESOLVED") return { error: "Cannot undo a return that has already been resolved." };
 
+  const customerId = r.saleItem.sale.customerId;
+
   await prisma.$transaction([
+    // MUST run with the delete below. Cancelling undoes the whole event, so the credit
+    // given to the customer has to go with it — otherwise they keep credit for a return
+    // that no longer exists, and the shop quietly loses that money. There is no foreign
+    // key doing this for us; it is deliberately explicit. See schema.prisma.
+    prisma.customerLedger.deleteMany({
+      where: { returnId: id, type: "RETURN_CREDIT" },
+    }),
     prisma.saleReturn.delete({ where: { id } }),
     prisma.sale.update({
       where: { id: r.saleItem.sale.id },
@@ -174,5 +227,9 @@ export async function cancelSupplierReturn(id: string): Promise<ReturnState> {
   ]);
 
   revalidatePath("/sales");
+  if (customerId) {
+    revalidatePath("/customers");
+    revalidatePath(`/customers/${customerId}`);
+  }
   return { success: "Return cancelled. Sale figures restored." };
 }

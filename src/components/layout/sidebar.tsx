@@ -16,6 +16,7 @@ import {
   TrendingUp,
   RefreshCcw,
   Layers,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/app/actions/auth";
@@ -45,6 +46,12 @@ const navItems: NavItem[] = [
     label: "Sales",
     href: "/sales",
     icon: ShoppingCart,
+    roles: ["ADMIN", "OWNER", "SELLER"],
+  },
+  {
+    label: "Customers",
+    href: "/customers",
+    icon: Store,
     roles: ["ADMIN", "OWNER", "SELLER"],
   },
   {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { Receipt, ChevronDown, ChevronUp, ShieldCheck, Store } from "lucide-react";
 import { ReturnButton } from "./return-button";
 
 type SaleItem = {
@@ -31,6 +31,13 @@ type Sale = {
   note: string | null;
   createdAt: Date;
   seller: { name: string };
+  customer: { id: string; shopName: string } | null;
+  /**
+   * What was left unpaid at the counter on the day of the sale. NOT a live
+   * paid/unpaid status — payments go against the customer's whole account, so a sale
+   * has no current settlement state of its own.
+   */
+  creditAtSale: number;
   items: SaleItem[];
 };
 
@@ -55,6 +62,30 @@ const gradeLabel: Record<string, string> = {
   OTHER: "Other",
 };
 
+/**
+ * The badge reads "Credit X at sale", never "unpaid" — see Sale.creditAtSale.
+ */
+function CustomerChip({ sale }: { sale: Sale }) {
+  if (!sale.customer) return null;
+  return (
+    <span className="flex items-center gap-1.5 min-w-0 shrink-0">
+      <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 max-w-[140px]">
+        <Store className="h-3 w-3 shrink-0" />
+        <span className="truncate">{sale.customer.shopName}</span>
+      </span>
+      {sale.creditAtSale > 0 ? (
+        <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 whitespace-nowrap">
+          Credit {sale.creditAtSale.toLocaleString("en-LK")} at sale
+        </span>
+      ) : (
+        <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
+          Paid
+        </span>
+      )}
+    </span>
+  );
+}
+
 function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancials: boolean; suppliers: { id: string; name: string }[] }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -73,7 +104,10 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
             <p className="text-xs text-slate-500 mt-0.5">{sale.items.length} item{sale.items.length > 1 ? "s" : ""}</p>
           </div>
           <div className="min-w-0">
-            <p className="text-sm text-slate-300 truncate">{sale.seller.name}</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="text-sm text-slate-300 truncate">{sale.seller.name}</p>
+              {sale.customer && <CustomerChip sale={sale} />}
+            </div>
             <p className="text-xs text-slate-500">{format(new Date(sale.createdAt), "dd MMM yyyy, h:mm a")}</p>
           </div>
           <div className="text-right">
@@ -105,6 +139,11 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
             <p className="text-slate-400 text-xs mt-0.5">
               {sale.seller.name} · {format(new Date(sale.createdAt), "dd MMM, h:mm a")}
             </p>
+            {sale.customer && (
+              <div className="mt-1">
+                <CustomerChip sale={sale} />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">

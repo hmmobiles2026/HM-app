@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifySession } from "@/lib/dal";
 import { notifyLowStock, notifySale } from "@/lib/telegram";
+import { roundMoney } from "@/lib/credit-math";
 import { after } from "next/server";
 
 const SaleItemSchema = z.object({
@@ -73,6 +74,19 @@ export async function createSale(
     }
   }
 
+  // Optional credit customer. Absent (a walk-in cash sale) is the default and behaves
+  // exactly as it always has — no customer, no ledger rows.
+  const customerIdRaw = (formData.get("customerId") as string | null)?.trim();
+  const customer = customerIdRaw
+    ? await prisma.customer.findFirst({
+        where: { id: customerIdRaw, isActive: true },
+        select: { id: true },
+      })
+    : null;
+  if (customerIdRaw && !customer) {
+    return { error: "That customer was not found or is inactive." };
+  }
+
   let totalRevenue = 0;
   let totalCost = 0;
 
@@ -88,11 +102,30 @@ export async function createSale(
   totalRevenue += warrantyFee;
   const profit = totalRevenue - totalCost;
 
+  // How much the customer handed over at the counter. Clamped against the
+  // server-computed total, so a stale or tampered client value can never record a
+  // payment larger than the sale itself.
+  // "Paid in full" arrives as a flag rather than a number: the total recomputed here
+  // can differ by a cent from the one the form displayed (per-line prices are scaled
+  // and rounded for discounts), and that cent would otherwise stay on the tab forever.
+  const payInFull = formData.get("payInFull") === "1";
+  const amountPaidRaw = Number(formData.get("amountPaid") ?? 0);
+  const chargeAmount = roundMoney(totalRevenue);
+  const amountPaid = !customer
+    ? 0
+    : payInFull
+      ? chargeAmount
+      : Math.min(
+          Math.max(0, Number.isFinite(amountPaidRaw) ? roundMoney(amountPaidRaw) : 0),
+          chargeAmount
+        );
+
   let saleId = "";
   await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.create({
       data: {
         sellerId: session.userId,
+        customerId: customer?.id ?? null,
         totalRevenue,
         totalCost,
         profit,
@@ -102,6 +135,36 @@ export async function createSale(
       },
     });
     saleId = sale.id;
+
+    // Credit layer. Revenue, cost and profit above are untouched by any of this —
+    // the sale is still recorded in full the moment the goods leave the shop.
+    if (customer) {
+      const saleRef = `Sale #${sale.id.slice(-6).toUpperCase()}`;
+      // A CHARGE is written even when fully paid, so the tab shows the whole story.
+      await tx.customerLedger.create({
+        data: {
+          customerId: customer.id,
+          type: "CHARGE",
+          amount: chargeAmount,
+          saleId: sale.id,
+          note: saleRef,
+          userId: session.userId,
+        },
+      });
+      if (amountPaid > 0) {
+        await tx.customerLedger.create({
+          data: {
+            customerId: customer.id,
+            type: "PAYMENT",
+            amount: amountPaid,
+            method: "CASH",
+            saleId: sale.id,
+            note: `Paid at counter — ${saleRef}`,
+            userId: session.userId,
+          },
+        });
+      }
+    }
 
     for (const item of items) {
       await tx.product.update({
@@ -149,5 +212,9 @@ export async function createSale(
   revalidatePath("/sales");
   revalidatePath("/stock");
   revalidatePath("/dashboard");
+  if (customer) {
+    revalidatePath("/customers");
+    revalidatePath(`/customers/${customer.id}`);
+  }
   redirect("/sales");
 }

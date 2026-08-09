@@ -1,5 +1,6 @@
 ﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getCustomerBalanceMap, getSaleCreditMap } from "@/lib/customers";
 import { QuickSaleForm } from "./quick-sale-form";
 import { SalesHistory } from "./sales-history";
 import { SupplierReturnsView } from "./supplier-returns-view";
@@ -20,7 +21,8 @@ export default async function SalesPage({
   const isAdminOrOwner = session.role !== "SELLER";
   const showFinancials = isAdminOrOwner;
 
-  const [rawProducts, rawSales, suppliers, supplierReturns] = await Promise.all([
+  const [rawProducts, rawSales, suppliers, supplierReturns, rawCustomers, balances] =
+    await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, stockQty: { gt: 0 } },
       include: { brand: true, model: true, category: true, partBrand: true },
@@ -30,6 +32,7 @@ export default async function SalesPage({
       where: session.role === "SELLER" ? { sellerId: session.userId } : {},
       include: {
         seller: { select: { name: true } },
+        customer: { select: { id: true, shopName: true } },
         items: {
           include: {
             product: {
@@ -72,7 +75,21 @@ export default async function SalesPage({
           orderBy: [{ supplierStatus: "asc" }, { createdAt: "desc" }],
         })
       : [],
+    prisma.customer.findMany({
+      where: { isActive: true },
+      orderBy: { shopName: "asc" },
+      select: { id: true, shopName: true, creditLimit: true },
+    }),
+    getCustomerBalanceMap(),
   ]);
+
+  const customers = rawCustomers.map((c) => ({
+    id: c.id,
+    shopName: c.shopName,
+    creditLimit: c.creditLimit ? c.creditLimit.toNumber() : null,
+    // Absent from the map means they have never transacted.
+    balance: balances.get(c.id) ?? 0,
+  }));
 
   const products = rawProducts.map((p) => ({
     ...p,
@@ -88,8 +105,14 @@ export default async function SalesPage({
       }))
     : [];
 
+  // How much of each sale went on the tab that day (see getSaleCreditMap).
+  const saleCredit = await getSaleCreditMap(
+    rawSales.filter((s) => s.customerId).map((s) => s.id)
+  );
+
   const sales = rawSales.map((s) => ({
     ...s,
+    creditAtSale: saleCredit.get(s.id) ?? 0,
     totalRevenue: s.totalRevenue.toNumber(),
     totalCost: s.totalCost.toNumber(),
     profit: s.profit.toNumber(),
@@ -121,7 +144,7 @@ export default async function SalesPage({
           )}
         </TabsList>
         <TabsContent value="new">
-          <QuickSaleForm products={products} />
+          <QuickSaleForm products={products} customers={customers} />
         </TabsContent>
         <TabsContent value="history">
           <SalesHistory sales={sales} showFinancials={showFinancials} suppliers={suppliers} />

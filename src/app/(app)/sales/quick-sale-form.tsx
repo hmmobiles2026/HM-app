@@ -5,8 +5,24 @@ import { createSale } from "@/app/actions/sales";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Plus, Trash2, ShoppingCart, Minus, Tag, ShieldCheck } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ShoppingCart,
+  Minus,
+  Tag,
+  ShieldCheck,
+  Store,
+  AlertTriangle,
+} from "lucide-react";
 import type { Product, Brand, PhoneModel, PartBrand, Category } from "@/generated/prisma/client";
+
+export type CustomerOption = {
+  id: string;
+  shopName: string;
+  balance: number;
+  creditLimit: number | null;
+};
 
 type ProductWithRelations = Omit<Product, "costPrice" | "sellingPrice"> & {
   costPrice: number;
@@ -37,7 +53,13 @@ const gradeBadge: Record<string, string> = {
   OTHER: "bg-slate-500/20 text-slate-300",
 };
 
-export function QuickSaleForm({ products }: { products: ProductWithRelations[] }) {
+export function QuickSaleForm({
+  products,
+  customers,
+}: {
+  products: ProductWithRelations[];
+  customers: CustomerOption[];
+}) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [qty, setQty] = useState(1);
@@ -45,6 +67,8 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
   const [totalInput, setTotalInput] = useState("");
   const [warrantyEnabled, setWarrantyEnabled] = useState(false);
   const [warrantyInput, setWarrantyInput] = useState("200");
+  const [customerId, setCustomerId] = useState("");
+  const [paidInput, setPaidInput] = useState("");
   const [state, formAction, pending] = useActionState(createSale, undefined);
 
   const productItems = products.map((p) => ({
@@ -96,8 +120,70 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
   const scale = subtotal > 0 ? productsTotal / subtotal : 1;
   const selectedProduct = products.find((p) => p.id === selectedId);
 
+  // ── Credit ──────────────────────────────────────────────────────────
+  const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
+  // An empty box means "paying the whole thing", which is the common case.
+  const amountPaid = selectedCustomer
+    ? paidInput === ""
+      ? finalTotal
+      : Math.min(Math.max(0, Number(paidInput) || 0), finalTotal)
+    : finalTotal;
+  const goesOnTab = selectedCustomer ? Math.max(0, finalTotal - amountPaid) : 0;
+  const newBalance = selectedCustomer ? selectedCustomer.balance + goesOnTab : 0;
+  const overLimitBy =
+    selectedCustomer && selectedCustomer.creditLimit !== null
+      ? newBalance - selectedCustomer.creditLimit
+      : 0;
+
+  const customerItems = customers.map((c) => ({
+    id: c.id,
+    label: c.shopName,
+    sublabel:
+      c.balance > 0
+        ? `Owes LKR ${c.balance.toLocaleString("en-LK")}`
+        : c.balance < 0
+          ? `LKR ${Math.abs(c.balance).toLocaleString("en-LK")} in advance`
+          : "Settled up",
+  }));
+
   return (
     <div className="mt-4 space-y-4">
+
+      {/* ── Customer ─────────────────────────────────────────────────── */}
+      <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+          Customer
+        </p>
+        <Combobox
+          name="_customerPicker"
+          items={customerItems}
+          value={customerId}
+          onChange={(id) => {
+            setCustomerId(id);
+            setPaidInput("");
+          }}
+          placeholder="Walk-in customer (cash)"
+        />
+        {selectedCustomer && (
+          <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-800 rounded-xl">
+            <Store className="h-4 w-4 text-slate-300 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-white truncate">
+                {selectedCustomer.shopName}
+              </p>
+              <p className="text-xs text-slate-400">
+                {selectedCustomer.balance > 0
+                  ? `Already owes LKR ${selectedCustomer.balance.toLocaleString("en-LK")}`
+                  : selectedCustomer.balance < 0
+                    ? `LKR ${Math.abs(selectedCustomer.balance).toLocaleString("en-LK")} in advance`
+                    : "Settled up"}
+                {selectedCustomer.creditLimit !== null &&
+                  ` · limit ${selectedCustomer.creditLimit.toLocaleString("en-LK")}`}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Product picker ───────────────────────────────────────────── */}
       <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
@@ -343,7 +429,97 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
               </div>
             )}
 
+            {/* ── Payment (credit customers only) ──────────────────── */}
+            {selectedCustomer && (
+              <div className="border-t border-slate-800 pt-3 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-slate-400 font-medium shrink-0">Paid now</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 text-sm">LKR</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={finalTotal}
+                      value={paidInput !== "" ? paidInput : String(finalTotal)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setPaidInput(e.target.value)}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (!Number.isFinite(v) || v >= finalTotal) setPaidInput("");
+                        else setPaidInput(String(Math.max(0, v)));
+                      }}
+                      className="text-white font-bold text-xl tabular-nums bg-transparent outline-none text-right w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPaidInput("")}
+                    className={`flex-1 h-9 rounded-xl text-xs font-medium transition-colors ${
+                      goesOnTab === 0
+                        ? "bg-emerald-600 text-white"
+                        : "bg-slate-800 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Paid in full
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaidInput("0")}
+                    className={`flex-1 h-9 rounded-xl text-xs font-medium transition-colors ${
+                      amountPaid === 0
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-800 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Nothing yet
+                  </button>
+                </div>
+
+                {goesOnTab > 0 && (
+                  <div className="space-y-1 rounded-xl bg-blue-950/40 border border-blue-900 px-3 py-2.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-blue-300">Goes on his tab</span>
+                      <span className="text-blue-200 font-bold tabular-nums">
+                        LKR {goesOnTab.toLocaleString("en-LK")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">New balance</span>
+                      <span className="text-slate-300 font-semibold tabular-nums">
+                        LKR {newBalance.toLocaleString("en-LK")}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {overLimitBy > 0 && (
+                  <div className="flex items-start gap-2 rounded-xl bg-amber-950/50 border border-amber-800 px-3 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-300">
+                      Over credit limit by{" "}
+                      <span className="font-semibold">
+                        LKR {overLimitBy.toLocaleString("en-LK")}
+                      </span>
+                      . You can still continue.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <form action={formAction} className="space-y-3">
+              <input type="hidden" name="customerId" value={customerId} />
+              {/*
+                Send the INTENT, not just the number. The server recomputes the total
+                from the scaled per-line prices, which can land a cent away from the
+                figure shown here. Without this flag, "paid in full" could leave a
+                stray LKR 0.01 sitting on the customer's tab forever.
+              */}
+              <input type="hidden" name="payInFull" value={paidInput === "" ? "1" : "0"} />
+              <input type="hidden" name="amountPaid" value={amountPaid} />
               {cart.map((item, i) => {
                 const livePrice = Number(priceInputs[item.product.id] ?? "");
                 const effectivePrice = livePrice >= 1 ? livePrice : item.customPrice;
@@ -364,9 +540,17 @@ export function QuickSaleForm({ products }: { products: ProductWithRelations[] }
                 </p>
               )}
               <Button type="submit" disabled={pending || cart.length === 0}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl font-bold text-base">
+                className={`w-full h-12 rounded-xl font-bold text-base ${
+                  goesOnTab > 0
+                    ? "bg-blue-600 hover:bg-blue-500 active:bg-blue-700"
+                    : "bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700"
+                }`}>
                 <ShoppingCart className="h-5 w-5 mr-2" />
-                {pending ? "Processing…" : `Complete Sale — LKR ${finalTotal.toLocaleString("en-LK")}`}
+                {pending
+                  ? "Processing…"
+                  : goesOnTab > 0
+                    ? `Complete Sale — LKR ${goesOnTab.toLocaleString("en-LK")} on credit`
+                    : `Complete Sale — LKR ${finalTotal.toLocaleString("en-LK")}`}
               </Button>
             </form>
           </div>

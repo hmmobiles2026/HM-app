@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/generated/prisma/client";
@@ -38,6 +39,12 @@ const navItems: NavItem[] = [
     label: "Sales",
     href: "/sales",
     icon: ShoppingCart,
+    roles: ["ADMIN", "OWNER", "SELLER"],
+  },
+  {
+    label: "Customers",
+    href: "/customers",
+    icon: Store,
     roles: ["ADMIN", "OWNER", "SELLER"],
   },
   {
