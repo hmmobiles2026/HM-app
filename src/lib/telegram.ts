@@ -45,7 +45,7 @@ export async function notifyLowStock(products: LowStockProduct[]): Promise<void>
     lines.join("\n\n") +
     `\n\n━━━━━━━━━━━━━━━━━━━━\n🕐 <i>${now}</i>`;
 
-  await sendTelegramMessage(config.botToken, config.chatId, text, "HTML").catch(() => {});
+  await broadcastTelegramMessage(config, text, "HTML").catch(() => {});
 }
 
 type StockInItem = {
@@ -105,7 +105,7 @@ export async function notifyStockIn(
       `\n🕐 <i>${time}</i>`;
   }
 
-  await sendTelegramMessage(config.botToken, config.chatId, text, "HTML").catch(() => {});
+  await broadcastTelegramMessage(config, text, "HTML").catch(() => {});
 }
 
 type SaleNotifyItem = {
@@ -158,7 +158,61 @@ export async function notifySale(
     `📈 Profit: <b>${fmt(profit)}</b>\n` +
     `\n🕐 <i>${time}</i>`;
 
-  await sendTelegramMessage(config.botToken, config.chatId, text, "HTML").catch(() => {});
+  await broadcastTelegramMessage(config, text, "HTML").catch(() => {});
+}
+
+/** Config shape the broadcast helpers need. */
+export type BroadcastTarget = {
+  botToken: string;
+  chatId: string;
+  extraChatIds?: string[];
+};
+
+/**
+ * Every chat that should receive notifications: the primary chatId plus any extras.
+ * Deduplicated and trimmed, so the same person never gets a message twice and a blank
+ * entry never produces a doomed API call.
+ */
+export function telegramRecipients(config: BroadcastTarget): string[] {
+  return [...new Set([config.chatId, ...(config.extraChatIds ?? [])].map((c) => c.trim()))].filter(
+    Boolean
+  );
+}
+
+/**
+ * Send to every recipient. One person having blocked the bot must not stop the others
+ * receiving it, so each send is independent and failures are swallowed per-recipient.
+ * Returns true if at least one delivery succeeded.
+ */
+export async function broadcastTelegramMessage(
+  config: BroadcastTarget,
+  text: string,
+  parseMode: "HTML" | "Markdown" | "MarkdownV2" = "HTML"
+): Promise<boolean> {
+  const results = await Promise.all(
+    telegramRecipients(config).map((chatId) =>
+      sendTelegramMessage(config.botToken, chatId, text, parseMode).catch(() => false)
+    )
+  );
+  return results.some(Boolean);
+}
+
+/** Same broadcast semantics as above, for file sends (backups). */
+export async function broadcastTelegramDocument(
+  config: BroadcastTarget,
+  filename: string,
+  content: string,
+  mimeType: string,
+  caption?: string
+): Promise<boolean> {
+  const results = await Promise.all(
+    telegramRecipients(config).map((chatId) =>
+      sendTelegramDocument(config.botToken, chatId, filename, content, mimeType, caption).catch(
+        () => false
+      )
+    )
+  );
+  return results.some(Boolean);
 }
 
 export async function sendTelegramMessage(

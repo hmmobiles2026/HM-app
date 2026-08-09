@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
+import { broadcastTelegramMessage, broadcastTelegramDocument } from "@/lib/telegram";
 import { getLicenseStatus } from "@/lib/license";
 
 export const dynamic = "force-dynamic";
@@ -124,10 +124,10 @@ export async function GET(req: Request) {
       ? `\n⏳ License expires in ${license.daysLeft} day${license.daysLeft !== 1 ? "s" : ""}`
       : "");
 
-  const ok = await sendTelegramDocument(config.botToken, config.chatId, filename, content, "application/json", caption);
+  const ok = await broadcastTelegramDocument(config, filename, content, "application/json", caption);
 
   if (!ok) {
-    await sendTelegramMessage(config.botToken, config.chatId,
+    await broadcastTelegramMessage(config,
       `⚠️ *Auto Backup Failed — HM Stocks*\n\n` +
       `Could not send backup file for ${dateLabel}.\n` +
       `Go to Settings → Backup to download manually.`,

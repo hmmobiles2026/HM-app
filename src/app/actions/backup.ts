@@ -2,7 +2,7 @@
 
 import { verifyRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
+import { broadcastTelegramMessage, broadcastTelegramDocument } from "@/lib/telegram";
 
 export type BackupState = { error?: string; success?: string } | undefined;
 
@@ -59,7 +59,7 @@ export async function sendTelegramBackup(): Promise<BackupState> {
     `_Download full backup from the app: Settings → Backup_`;
 
   try {
-    const ok = await sendTelegramMessage(config.botToken, config.chatId, message, "Markdown");
+    const ok = await broadcastTelegramMessage(config, message, "Markdown");
     if (!ok) return { error: "Failed to send to Telegram. Check your bot config." };
     return { success: "Backup summary sent to Telegram." };
   } catch {
@@ -152,7 +152,7 @@ export async function sendTelegramFileBackup(): Promise<BackupState> {
   const caption = `📦 HM Stocks — Full backup\n_${date}_\n${products.length} products · ${sales.length} sales`;
 
   try {
-    const ok = await sendTelegramDocument(config.botToken, config.chatId, filename, content, "application/json", caption);
+    const ok = await broadcastTelegramDocument(config, filename, content, "application/json", caption);
     if (!ok) return { error: "Failed to send file to Telegram. Check your bot config." };
     return { success: `Backup file sent to Telegram: ${filename}` };
   } catch {

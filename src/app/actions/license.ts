@@ -4,7 +4,7 @@ import { createHmac } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { validateLicenseKey } from "@/lib/license";
-import { sendTelegramMessage } from "@/lib/telegram";
+import { broadcastTelegramMessage } from "@/lib/telegram";
 import { verifyRole } from "@/lib/dal";
 
 export type LicenseActionState = { error?: string; success?: string } | undefined;
@@ -81,9 +81,8 @@ export async function startFreeTrial(): Promise<LicenseActionState> {
 
   const config = await prisma.telegramConfig.findFirst();
   if (config) {
-    await sendTelegramMessage(
-      config.botToken,
-      config.chatId,
+    await broadcastTelegramMessage(
+      config,
       `✅ *FREE TRIAL ACTIVATED — HM Stocks*\n\n` +
       `Your 4-month free trial has started.\n` +
       `Telegram alerts are now active.`,
@@ -118,9 +117,8 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
 
   // Send final payment reminder (outgoing sendMessage is unaffected by webhook state)
   if (config) {
-    await sendTelegramMessage(
-      config.botToken,
-      config.chatId,
+    await broadcastTelegramMessage(
+      config,
       `⚠️ *HM Stocks — Access Suspended*\n\n` +
       `Your access has been suspended.\n\n` +
       `Pay *LKR 2,000* to reactivate for 3 months.\n\n` +

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTelegramMessage } from "@/lib/telegram";
+import { broadcastTelegramMessage } from "@/lib/telegram";
 import { getLicenseStatus } from "@/lib/license";
 import { buildDailyReport } from "@/lib/daily-report";
 
@@ -17,9 +17,8 @@ export async function GET(req: Request) {
   if (!license.active) {
     const config = await prisma.telegramConfig.findFirst();
     if (config) {
-      await sendTelegramMessage(
-        config.botToken,
-        config.chatId,
+      await broadcastTelegramMessage(
+        config,
         `🔴 *LICENSE EXPIRED — HM Stocks*\n\n` +
         `Telegram alerts are now disabled.\n` +
         `Contact HM Stocks support to renew (LKR 2,000 / 3 months).`,
@@ -35,12 +34,12 @@ export async function GET(req: Request) {
   ]);
 
   if (config) {
-    await sendTelegramMessage(config.botToken, config.chatId, text, "Markdown");
+    await broadcastTelegramMessage(
+        config, text, "Markdown");
 
     if (license.daysLeft <= 7) {
-      await sendTelegramMessage(
-        config.botToken,
-        config.chatId,
+      await broadcastTelegramMessage(
+        config,
         `⏳ *LICENSE EXPIRING SOON*\n` +
         `${license.isTrial ? "Free trial" : "License"} expires in *${license.daysLeft} day${license.daysLeft !== 1 ? "s" : ""}*.\n` +
         `Renew now — LKR 2,000 / 3 months.`,

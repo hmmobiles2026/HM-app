@@ -2,18 +2,29 @@
 import { prisma } from "@/lib/prisma";
 import { TelegramConfigForm } from "./telegram-config-form";
 import { TelegramLogs } from "./telegram-logs";
+import { TelegramRecipients } from "./telegram-recipients";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function TelegramPage() {
   await verifyRole(["ADMIN"]);
 
-  const [config, logs] = await Promise.all([
+  const [config, logs, sessions] = await Promise.all([
     prisma.telegramConfig.findFirst(),
     prisma.telegramLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
+    prisma.telegramSession.findMany({
+      include: { user: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+
+  const knownChats = sessions.map((s) => ({
+    chatId: s.chatId,
+    name: s.user.name,
+    role: s.role,
+  }));
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -64,7 +75,16 @@ export default async function TelegramPage() {
         </TabsList>
 
         <TabsContent value="config">
-          <TelegramConfigForm config={config} />
+          <div className="space-y-4">
+            <TelegramConfigForm config={config} />
+            {config && (
+              <TelegramRecipients
+                primaryChatId={config.chatId}
+                extraChatIds={config.extraChatIds}
+                knownChats={knownChats}
+              />
+            )}
+          </div>
         </TabsContent>
         <TabsContent value="logs">
           <TelegramLogs logs={logs} />

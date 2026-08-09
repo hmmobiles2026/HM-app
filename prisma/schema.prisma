@@ -384,6 +384,10 @@ model TelegramConfig {
   id            String   @id @default(cuid())
   botToken      String
   chatId        String
+  // Everyone else who should receive alerts, reports and backups. chatId stays the
+  // primary recipient; these are additional. Notifications go to all of them, so the
+  // shop owner and whoever supports the shop can both be kept informed.
+  extraChatIds  String[] @default([])
   webhookSecret String
   isActive      Boolean  @default(true)
   updatedAt     DateTime @updatedAt

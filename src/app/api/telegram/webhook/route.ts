@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
 import { getReceivablesSummary, getCustomerBalanceMap } from "@/lib/customers";
+import { getLicenseStatus } from "@/lib/license";
 
 const SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 const SL_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -40,28 +41,23 @@ export async function POST(req: NextRequest) {
     data: { direction: "IN", from: chatId, to: "bot", message: text },
   });
 
-  // Direct DB check — bot is blocked if deactivated, trial not started, or expired
-  const licenseRow = await prisma.appLicense.findFirst();
-  const now = new Date();
-  const blocked =
-    !licenseRow ||
-    licenseRow.forceDeactivated ||
-    licenseRow.licensedUntil?.getTime() === 0 ||
-    (!licenseRow.trialStartedAt && !licenseRow.licensedUntil);
+  // Licence gate. Uses getLicenseStatus() rather than repeating the trial maths here —
+  // the trial length used to be hardcoded in this file as well as in license.ts, so
+  // changing one would silently disagree with the other.
+  const license = await getLicenseStatus();
+  if (!license.active) {
+    // Say WHY. This used to return silently, so on the day a licence lapsed the bot
+    // simply stopped answering and the shop had no idea what had happened.
+    const reason = license.forceDeactivated
+      ? `🔒 *HM Stocks bot is deactivated.*\n\nPlease contact HM Stocks support to reactivate.`
+      : license.trialNotStarted
+        ? `🔒 *HM Stocks bot is not activated yet.*\n\nAn admin needs to start the free trial in Settings → License.`
+        : `🔒 *HM Stocks license has expired.*\n\nThe bot cannot answer until it is renewed. Contact HM Stocks support — LKR 2,000 for 3 months.`;
 
-  if (!blocked && licenseRow) {
-    const { addMonths } = await import("date-fns");
-    const trialEnd = licenseRow.trialStartedAt ? addMonths(licenseRow.trialStartedAt, 4) : now;
-    const expiresAt =
-      licenseRow.licensedUntil && licenseRow.licensedUntil > trialEnd
-        ? licenseRow.licensedUntil
-        : trialEnd;
-    if (now >= expiresAt) {
-      return new Response("OK", { status: 200 });
-    }
-  }
-
-  if (blocked) {
+    await sendTelegramMessage(config.botToken, chatId, reason, "Markdown").catch(() => {});
+    await prisma.telegramLog
+      .create({ data: { direction: "OUT", from: "bot", to: chatId, message: reason } })
+      .catch(() => {});
     return new Response("OK", { status: 200 });
   }
 
@@ -169,7 +165,7 @@ async function tryAuthenticate(chatId: string, password: string, now: Date): Pro
     `✅ *Welcome, ${escapeMd(matchedUser.name)}!*\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `👤 Role: ${roleLabel[matchedUser.role] ?? matchedUser.role}\n` +
-    `🔒 Session valid for 24 hours\n\n` +
+    `🔒 Session valid for 2 days\n\n` +
     `Type *help* to see available commands.`
   );
 }
