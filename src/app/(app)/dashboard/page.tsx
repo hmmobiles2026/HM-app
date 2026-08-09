@@ -9,6 +9,8 @@ import { TopSelling } from "./top-selling";
 import { SlowMoving } from "./slow-moving";
 import { AccountingOverview } from "./accounting-overview";
 import { PendingReturnsSummary } from "./pending-returns-summary";
+import { CustomerDuesSummary } from "./customer-dues-summary";
+import { getReceivablesSummary } from "@/lib/customers";
 import { startOfDay, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth, subWeeks, endOfWeek } from "date-fns";
 import Link from "next/link";
 import { ShieldAlert, ShieldOff } from "lucide-react";
@@ -42,6 +44,7 @@ async function getDashboardData(role: string) {
     lastMonthAgg,
     lastWeekAgg,
     monthlySummary,
+    receivables,
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: { gte: today } },
@@ -176,6 +179,8 @@ async function getDashboardData(role: string) {
       GROUP BY DATE_TRUNC('month', "createdAt")
       ORDER BY month ASC
     `,
+    // Customer credit. Sits alongside the figures above and never alters them.
+    getReceivablesSummary(),
   ]);
 
   return {
@@ -214,6 +219,7 @@ async function getDashboardData(role: string) {
       count: pendingReturnsAgg._count,
       value: pendingReturnsAgg._sum.costRecovery?.toNumber() ?? 0,
     },
+    receivables,
     accounting: {
       thisMonth: {
         revenue: thisMonthAgg._sum.totalRevenue?.toNumber() ?? 0,
@@ -360,12 +366,23 @@ export default async function DashboardPage() {
             <h2 className="text-base font-semibold text-slate-300 mb-3">Accounting Overview</h2>
             <AccountingOverview accounting={data.accounting} />
           </div>
-          <div>
-            <h2 className="text-base font-semibold text-slate-300 mb-3">Pending Supplier Returns</h2>
-            <PendingReturnsSummary
-              count={data.pendingReturns.count}
-              value={data.pendingReturns.value}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-300 mb-3">Pending Supplier Returns</h2>
+              <PendingReturnsSummary
+                count={data.pendingReturns.count}
+                value={data.pendingReturns.value}
+              />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-300 mb-3">Customer Dues</h2>
+              <CustomerDuesSummary
+                totalOutstanding={data.receivables.totalOutstanding}
+                shopsWithDues={data.receivables.shopsWithDues}
+                overdue30={data.receivables.overdue30}
+                collectedThisMonth={data.receivables.collectedThisMonth}
+              />
+            </div>
           </div>
         </>
       )}

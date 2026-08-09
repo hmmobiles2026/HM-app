@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
+import { getReceivablesSummary, getCustomerBalanceMap } from "@/lib/customers";
 
 const SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 const SL_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -217,6 +218,11 @@ async function handleBotMessage(
   else if (!canViewFinancials && ["/suppliers", "suppliers", "sup"].includes(t))
     return "🚫 Supplier returns are only available to Owner / Admin.";
 
+  if (["/dues", "dues", "credit", "/credit"].includes(t)) {
+    if (!canViewFinancials) return "🚫 Customer dues are only available to Owner / Admin.";
+    return buildDuesMessage();
+  }
+
   // price/p is now just an alias for stock search (prices always shown)
   if (t.startsWith("price ") || t.startsWith("/price ") || t.startsWith("p "))
     return buildStockMessage(text.replace(/^\/?(price|p)\s+/i, "").trim(), canViewFinancials);
@@ -246,6 +252,8 @@ function buildHelpMessage(canViewFinancials: boolean): string {
       `• today · t — _Quick today's totals_\n` +
       `• week · w — _This week's totals_\n` +
       `• month · m — _This month's totals_\n\n` +
+      `🧾 *Customer Credit*\n` +
+      `• dues · credit — _Who owes money and how much_\n\n` +
       `🚚 *Supplier Returns*\n` +
       `• suppliers · sup — _Pending & resolved supplier claims_\n\n` +
       `💾 *Backup*\n` +
@@ -433,6 +441,48 @@ async function buildLowStockMessage(canViewCosts: boolean): Promise<string> {
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
     lines.join("\n\n")
   );
+}
+
+async function buildDuesMessage(): Promise<string> {
+  const [summary, customers, balances] = await Promise.all([
+    getReceivablesSummary(),
+    prisma.customer.findMany({ select: { id: true, shopName: true, phone: true } }),
+    getCustomerBalanceMap(),
+  ]);
+
+  const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
+
+  const owing = customers
+    .map((c) => ({ ...c, balance: balances.get(c.id) ?? 0 }))
+    .filter((c) => c.balance > 0)
+    .sort((a, b) => b.balance - a.balance);
+
+  if (owing.length === 0) {
+    return (
+      `🧾 *Customer Credit*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✅ Every shop is settled up.\n\n` +
+      (summary.collectedThisMonth > 0
+        ? `💰 Collected this month: *${fmt(summary.collectedThisMonth)}*`
+        : "")
+    );
+  }
+
+  let msg =
+    `🧾 *Customer Credit*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `💵 Outstanding: *${fmt(summary.totalOutstanding)}*\n` +
+    `🏪 Shops owing: ${owing.length}\n`;
+  if (summary.overdue30 > 0) msg += `⏳ Over 30 days: *${fmt(summary.overdue30)}*\n`;
+  if (summary.collectedThisMonth > 0)
+    msg += `💰 Collected this month: ${fmt(summary.collectedThisMonth)}\n`;
+
+  msg += `\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+  for (const c of owing.slice(0, 15)) {
+    msg += `🔸 *${escapeMd(c.shopName)}* — ${fmt(c.balance)}\n`;
+    if (c.phone) msg += `   ${escapeMd(c.phone)}\n`;
+  }
+  if (owing.length > 15) msg += `\n_...and ${owing.length - 15} more_`;
+
+  return msg;
 }
 
 async function buildSupplierReturnsMessage(): Promise<string> {

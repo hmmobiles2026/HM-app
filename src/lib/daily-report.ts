@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { getReceivablesSummary } from "@/lib/customers";
 
 function escapeMd(s: string): string {
   return s.replace(/[_*`[]/g, "\\$&");
@@ -17,7 +18,16 @@ export async function buildDailyReport(): Promise<string> {
   const date = slNow.toLocaleDateString("en-LK", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
 
-  const [summary, sales, lowStock, lostStock, pendingSupplierReturns] = await Promise.all([
+  const [
+    summary,
+    sales,
+    lowStock,
+    lostStock,
+    pendingSupplierReturns,
+    receivables,
+    collectedToday,
+    topDebtors,
+  ] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: { gte: slStartOfDay } },
       _sum: { totalRevenue: true, totalCost: true, profit: true },
@@ -65,6 +75,37 @@ export async function buildDailyReport(): Promise<string> {
       },
       orderBy: { createdAt: "desc" },
     }),
+    // ── Customer credit ──────────────────────────────────────────────────────
+    getReceivablesSummary(),
+    prisma.customerLedger.aggregate({
+      where: { type: "PAYMENT", createdAt: { gte: slStartOfDay } },
+      _sum: { amount: true },
+    }),
+    prisma.$queryRaw<{ shopName: string; balance: string }[]>`
+      SELECT c."shopName",
+             SUM(CASE
+                   WHEN l.type = 'CHARGE' THEN l.amount
+                   WHEN l.type = 'ADJUSTMENT' THEN l.amount
+                   ELSE -l.amount
+                 END)::text AS balance
+      FROM "Customer" c
+      JOIN "CustomerLedger" l ON l."customerId" = c.id
+      GROUP BY c.id, c."shopName"
+      HAVING SUM(CASE
+                   WHEN l.type = 'CHARGE' THEN l.amount
+                   WHEN l.type = 'ADJUSTMENT' THEN l.amount
+                   ELSE -l.amount
+                 END) > 0
+      -- Order by the NUMERIC sum, not the "balance" alias: that alias is ::text, so
+      -- sorting by it compares strings ("13000.00" < "9000.00") and picks the wrong
+      -- shops for the top 5.
+      ORDER BY SUM(CASE
+                     WHEN l.type = 'CHARGE' THEN l.amount
+                     WHEN l.type = 'ADJUSTMENT' THEN l.amount
+                     ELSE -l.amount
+                   END) DESC
+      LIMIT 5
+    `,
   ]);
 
   const revenue = summary._sum.totalRevenue?.toNumber() ?? 0;
@@ -78,8 +119,32 @@ export async function buildDailyReport(): Promise<string> {
     `📅 ${weekday}, ${date}\n` +
     `━━━━━━━━━━━━━━━━━━━━`;
 
+  // Credit owed by customer shops. Independent of today's trading, so it is shown
+  // even on a day with no sales. Revenue above already counts these amounts —
+  // this section is about cash not yet collected.
+  const paidToday = collectedToday._sum.amount?.toNumber() ?? 0;
+  const creditSection =
+    receivables.shopsWithDues > 0 || paidToday > 0
+      ? `━━━━━━━━━━━━━━━━━━━━\n` +
+        `🧾 *CUSTOMER CREDIT*\n` +
+        `Outstanding: *${fmt(receivables.totalOutstanding)}* from ${receivables.shopsWithDues} shop${receivables.shopsWithDues !== 1 ? "s" : ""}\n` +
+        (receivables.overdue30 > 0 ? `⏳ Over 30 days: *${fmt(receivables.overdue30)}*\n` : "") +
+        (paidToday > 0 ? `💰 Collected today: *${fmt(paidToday)}*\n` : "") +
+        (topDebtors.length > 0
+          ? topDebtors
+              .map((d) => `• ${escapeMd(d.shopName)}: ${fmt(Number(d.balance))}`)
+              .join("\n") + "\n"
+          : "") +
+        `\n`
+      : "";
+
   if (saleCount === 0) {
-    return header + `\n\n_No sales recorded today._\n\n━━━━━━━━━━━━━━━━━━━━`;
+    return (
+      header +
+      `\n\n_No sales recorded today._\n\n` +
+      creditSection +
+      `━━━━━━━━━━━━━━━━━━━━`
+    );
   }
 
   const numerals = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
@@ -148,6 +213,7 @@ export async function buildDailyReport(): Promise<string> {
     `${lowLines}\n\n` +
     lostSection +
     supplierSection +
+    creditSection +
     `━━━━━━━━━━━━━━━━━━━━`
   );
 }
