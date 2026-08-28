@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Receipt, ChevronDown, ChevronUp, ShieldCheck, Store } from "lucide-react";
@@ -45,7 +45,13 @@ type Sale = {
 };
 
 type Supplier = { id: string; name: string };
-type Props = { sales: Sale[]; showFinancials: boolean; suppliers: Supplier[] };
+type Props = {
+  sales: Sale[];
+  showFinancials: boolean;
+  suppliers: Supplier[];
+  /** Sale arrived at from a link — opened and highlighted on load. */
+  focusSaleId?: string;
+};
 
 function lkr(n: number) {
   return `LKR ${n.toLocaleString("en-LK", { minimumFractionDigits: 2 })}`;
@@ -113,14 +119,27 @@ function CustomerChip({ sale }: { sale: Sale }) {
   );
 }
 
-function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancials: boolean; suppliers: { id: string; name: string }[] }) {
-  const [expanded, setExpanded] = useState(false);
+function SaleRow({ sale, showFinancials, suppliers, focused = false }: { sale: Sale; showFinancials: boolean; suppliers: { id: string; name: string }[]; focused?: boolean }) {
+  // Arriving from a customer's ledger opens the sale straight away, so the return
+  // buttons are one tap from the charge you were looking at.
+  const [expanded, setExpanded] = useState(focused);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!focused) return;
+    rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused]);
   // Distinguishes a per-item sale from an old whole-bill one, so an uncovered line
   // never offers to refund another line's warranty.
   const saleUsesPerItemWarranty = sale.items.some((i) => i.warrantyPerUnit !== null);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+    <div
+      ref={rowRef}
+      className={`bg-slate-900 border rounded-2xl overflow-hidden transition-colors ${
+        focused ? "border-blue-500 ring-1 ring-blue-500/40" : "border-slate-800"
+      }`}
+    >
       {/* Header row — desktop table-like, mobile stacked */}
       <button
         type="button"
@@ -341,7 +360,7 @@ function SaleRow({ sale, showFinancials, suppliers }: { sale: Sale; showFinancia
   );
 }
 
-export function SalesHistory({ sales, showFinancials, suppliers }: Props) {
+export function SalesHistory({ sales, showFinancials, suppliers, focusSaleId }: Props) {
   if (sales.length === 0) {
     return (
       <div className="flex flex-col items-center py-16 text-slate-500">
@@ -364,7 +383,13 @@ export function SalesHistory({ sales, showFinancials, suppliers }: Props) {
       </div>
 
       {sales.map((sale) => (
-        <SaleRow key={sale.id} sale={sale} showFinancials={showFinancials} suppliers={suppliers} />
+        <SaleRow
+          key={sale.id}
+          sale={sale}
+          showFinancials={showFinancials}
+          suppliers={suppliers}
+          focused={sale.id === focusSaleId}
+        />
       ))}
     </div>
   );

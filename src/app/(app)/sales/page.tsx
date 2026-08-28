@@ -12,6 +12,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const VALID_TABS = ["new", "history", "supplier-returns"] as const;
 
+/** Shared so the linked-sale lookup returns exactly the same shape as the list. */
+const saleInclude = {
+  seller: { select: { name: true } },
+  customer: { select: { id: true, shopName: true } },
+  items: {
+    include: {
+      product: {
+        select: {
+          name: true,
+          imageUrl: true,
+          qualityGrade: true,
+          brand: { select: { name: true } },
+          model: { select: { name: true } },
+          partBrand: { select: { name: true } },
+        },
+      },
+      returns: { select: { quantity: true } },
+    },
+  },
+} satisfies Prisma.SaleInclude;
+
 /**
  * Warranty badge text, resolved server-side so the client never redoes date maths.
  * Returns null when the line was sold without per-item cover.
@@ -33,12 +54,14 @@ function warrantyLabelFor(
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sale?: string }>;
 }) {
-  const { tab } = await searchParams;
+  const { tab, sale: focusSaleId } = await searchParams;
   const defaultTab = VALID_TABS.includes(tab as (typeof VALID_TABS)[number])
     ? (tab as string)
-    : "new";
+    : focusSaleId
+      ? "history"
+      : "new";
   const session = await verifySession();
   const isAdminOrOwner = session.role !== "SELLER";
   const showFinancials = isAdminOrOwner;
@@ -52,25 +75,7 @@ export default async function SalesPage({
     }),
     prisma.sale.findMany({
       where: session.role === "SELLER" ? { sellerId: session.userId } : {},
-      include: {
-        seller: { select: { name: true } },
-        customer: { select: { id: true, shopName: true } },
-        items: {
-          include: {
-            product: {
-              select: {
-                name: true,
-                imageUrl: true,
-                qualityGrade: true,
-                brand: { select: { name: true } },
-                model: { select: { name: true } },
-                partBrand: { select: { name: true } },
-              },
-            },
-            returns: { select: { quantity: true } },
-          },
-        },
-      },
+      include: saleInclude,
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
@@ -128,12 +133,28 @@ export default async function SalesPage({
       }))
     : [];
 
+  // A sale linked from a customer's ledger is often older than the 50 most recent,
+  // so it would otherwise simply not be on the page. Fetch it and put it on top.
+  // Sellers stay scoped to their own sales.
+  const linkedSale =
+    focusSaleId && !rawSales.some((s) => s.id === focusSaleId)
+      ? await prisma.sale.findFirst({
+          where: {
+            id: focusSaleId,
+            ...(session.role === "SELLER" ? { sellerId: session.userId } : {}),
+          },
+          include: saleInclude,
+        })
+      : null;
+
+  const sourceSales = linkedSale ? [linkedSale, ...rawSales] : rawSales;
+
   // How much of each sale went on the tab that day (see getSaleCreditMap).
   const saleCredit = await getSaleCreditMap(
-    rawSales.filter((s) => s.customerId).map((s) => s.id)
+    sourceSales.filter((s) => s.customerId).map((s) => s.id)
   );
 
-  const sales = rawSales.map((s) => ({
+  const sales = sourceSales.map((s) => ({
     ...s,
     creditAtSale: saleCredit.get(s.id) ?? 0,
     totalRevenue: s.totalRevenue.toNumber(),
@@ -176,7 +197,12 @@ export default async function SalesPage({
           <QuickSaleForm products={products} customers={customers} warrantyDefaults={warrantyDefaults} />
         </TabsContent>
         <TabsContent value="history">
-          <SalesHistory sales={sales} showFinancials={showFinancials} suppliers={suppliers} />
+          <SalesHistory
+            sales={sales}
+            showFinancials={showFinancials}
+            suppliers={suppliers}
+            focusSaleId={linkedSale ? linkedSale.id : focusSaleId}
+          />
         </TabsContent>
         {isAdminOrOwner && (
           <TabsContent value="supplier-returns">

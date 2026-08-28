@@ -29,6 +29,8 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   Power,
+  Package,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -72,6 +74,12 @@ const methodLabel: Record<string, string> = {
   CHEQUE: "Cheque",
   OTHER: "Other",
 };
+
+/** A CHARGE's note repeats the sale reference already rendered as a link. */
+function isRedundantNote(note: string, saleId: string | null): boolean {
+  if (!saleId) return false;
+  return note.trim().toUpperCase() === `SALE #${saleId.slice(-6).toUpperCase()}`;
+}
 
 function fmtDate(d: Date) {
   return new Date(d).toLocaleDateString("en-LK", {
@@ -153,8 +161,21 @@ export function CustomerDetailView({
           </div>
         </div>
 
+        {!canManage && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href={`/api/customers/${customer.id}/statement`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-10 inline-flex items-center gap-1.5 px-4 rounded-xl border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors"
+            >
+              <FileText className="h-4 w-4" />
+              Statement
+            </a>
+          </div>
+        )}
         {canManage && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               onClick={() => setAdjustOpen(true)}
               variant="outline"
@@ -174,6 +195,16 @@ export function CustomerDetailView({
                 {customer.isActive ? "Deactivate" : "Reactivate"}
               </span>
             </Button>
+            <a
+              href={`/api/customers/${customer.id}/statement`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-10 inline-flex items-center gap-1.5 px-4 rounded-xl border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors"
+              title="Printable statement showing how this balance was built up"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Statement</span>
+            </a>
             <Button
               onClick={() => setPayOpen(true)}
               className="h-10 bg-emerald-600 hover:bg-emerald-500 rounded-xl gap-1.5"
@@ -318,24 +349,51 @@ export function CustomerDetailView({
                             {typeLabel[row.type]}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-400 min-w-[180px]">
+                        <td className="px-4 py-3 text-slate-400 min-w-[260px]">
                           {row.saleId && (
                             <Link
-                              href="/sales?tab=history"
-                              className="text-blue-400 hover:text-blue-300 transition-colors"
+                              href={`/sales?tab=history&sale=${row.saleId}`}
+                              className="text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                              title="Open this sale to view items or return one"
                             >
-                              Sale #{row.saleId.slice(-6).toUpperCase()}
+                              Sale #{row.saleId.slice(-6).toUpperCase()} &rarr;
                             </Link>
                           )}
                           {row.method && (
                             <span>{methodLabel[row.method] ?? row.method}</span>
                           )}
-                          {row.note && (
-                            <span className="block text-xs text-slate-500">
+
+                          {/* The actual parts. Without these a charge is just a
+                              reference number nobody can place months later. */}
+                          {row.lines.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {row.lines.map((line, i) => (
+                                <li
+                                  key={`${row.id}-${i}`}
+                                  className="text-xs text-slate-300 flex items-baseline gap-1.5"
+                                >
+                                  <Package className="h-3 w-3 text-slate-500 shrink-0 translate-y-0.5" />
+                                  <span className="min-w-0">
+                                    {line.label}
+                                    <span className="text-slate-500">
+                                      {" "}× {line.quantity}
+                                      {line.unitPrice > 0 && (
+                                        <> @ {line.unitPrice.toLocaleString("en-LK")}</>
+                                      )}
+                                    </span>
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {/* A CHARGE note is just "Sale #XXXXXX", already shown above. */}
+                          {row.note && !isRedundantNote(row.note, row.saleId) && (
+                            <span className="block text-xs text-slate-500 mt-1">
                               {row.note}
                             </span>
                           )}
-                          <span className="block text-xs text-slate-600">
+                          <span className="block text-xs text-slate-600 mt-0.5">
                             by {row.createdByName}
                           </span>
                         </td>

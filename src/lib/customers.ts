@@ -105,6 +105,13 @@ export async function getSaleCreditMap(
   return map;
 }
 
+/** One product line behind a ledger entry, so a charge is recognisable later. */
+export type LedgerLine = {
+  label: string;
+  quantity: number;
+  unitPrice: number;
+};
+
 export type LedgerRow = {
   id: string;
   type: LedgerType;
@@ -115,9 +122,27 @@ export type LedgerRow = {
   note: string | null;
   createdAt: Date;
   createdByName: string;
+  /**
+   * What was actually bought or returned. "Sale #A4F2" on its own is unrecognisable
+   * months later, so charges carry their products and return credits carry the part
+   * that came back.
+   */
+  lines: LedgerLine[];
   /** Balance immediately after this entry. */
   balanceAfter: number;
 };
+
+/** "Samsung A54 — LCD Display (MEETOO)", the same shape used across the app. */
+function productLabel(p: {
+  name: string;
+  brand: { name: string };
+  model: { name: string } | null;
+  partBrand: { name: string } | null;
+}): string {
+  const head = `${p.brand.name}${p.model ? ` ${p.model.name}` : ""}`;
+  const tail = p.partBrand ? ` (${p.partBrand.name})` : "";
+  return `${head} — ${p.name}${tail}`;
+}
 
 /**
  * Full ledger for one customer, newest first, each row carrying the running balance
@@ -135,10 +160,64 @@ export async function getCustomerLedger(customerId: string): Promise<LedgerRow[]
     include: { createdBy: { select: { name: true } } },
   });
 
+  // Two batched lookups rather than one per row: the products on each charged sale,
+  // and the specific part behind each return credit.
+  const saleIds = [
+    ...new Set(entries.filter((e) => e.type === "CHARGE" && e.saleId).map((e) => e.saleId!)),
+  ];
+  const returnIds = [...new Set(entries.filter((e) => e.returnId).map((e) => e.returnId!))];
+
+  const [saleItems, returns] = await Promise.all([
+    saleIds.length
+      ? prisma.saleItem.findMany({
+          where: { saleId: { in: saleIds } },
+          include: { product: { include: { brand: true, model: true, partBrand: true } } },
+        })
+      : [],
+    returnIds.length
+      ? prisma.saleReturn.findMany({
+          where: { id: { in: returnIds } },
+          include: {
+            saleItem: {
+              include: { product: { include: { brand: true, model: true, partBrand: true } } },
+            },
+          },
+        })
+      : [],
+  ]);
+
+  const linesBySale = new Map<string, LedgerLine[]>();
+  for (const item of saleItems) {
+    const list = linesBySale.get(item.saleId) ?? [];
+    list.push({
+      label: productLabel(item.product),
+      quantity: item.quantity,
+      unitPrice: item.unitPrice.toNumber(),
+    });
+    linesBySale.set(item.saleId, list);
+  }
+
+  const lineByReturn = new Map<string, LedgerLine>();
+  for (const r of returns) {
+    lineByReturn.set(r.id, {
+      label: productLabel(r.saleItem.product),
+      quantity: r.quantity,
+      unitPrice: r.saleItem.unitPrice.toNumber(),
+    });
+  }
+
   let running = 0;
   const ascending = entries.map((e) => {
     const amount = e.amount.toNumber();
     running += LEDGER_SIGN[e.type] * amount;
+
+    const returnLine = e.returnId ? lineByReturn.get(e.returnId) : undefined;
+    const lines = returnLine
+      ? [returnLine]
+      : e.type === "CHARGE" && e.saleId
+        ? (linesBySale.get(e.saleId) ?? [])
+        : [];
+
     return {
       id: e.id,
       type: e.type,
@@ -149,6 +228,7 @@ export async function getCustomerLedger(customerId: string): Promise<LedgerRow[]
       note: e.note,
       createdAt: e.createdAt,
       createdByName: e.createdBy.name,
+      lines,
       balanceAfter: running,
     };
   });
