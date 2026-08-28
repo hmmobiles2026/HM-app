@@ -5,6 +5,13 @@ import { sendTelegramMessage, sendTelegramDocument } from "@/lib/telegram";
 import { buildDailyReport } from "@/lib/daily-report";
 import { getReceivablesSummary, getCustomerBalanceMap } from "@/lib/customers";
 import { getLicenseStatus } from "@/lib/license";
+import {
+  searchTokens,
+  tokenFilter,
+  rankProducts,
+  fitCount,
+  SEARCH_SCAN,
+} from "@/lib/stock-search";
 
 const SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 const SL_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -97,7 +104,10 @@ async function routeMessage(
   const sessionExpired = !!session && session.expiresAt <= now;
 
   if (!isAuthenticated) {
-    if (["/start", "/help"].includes(text.toLowerCase())) {
+    // Match greetings with or without a slash. "help" and "hello" used to fall through
+    // to the password check and burn one of the five attempts before lockout.
+    const greeting = (text.trim().startsWith("/") ? text.trim().slice(1) : text.trim()).toLowerCase();
+    if (["start", "help", "hi", "hello", "hey"].includes(greeting)) {
       return { reply: "🔐 *HM Stocks Bot*\n\nEnter your login password to continue:", deleteInput: false };
     }
     if (!text.startsWith("/") && text.length >= 4) {
@@ -185,50 +195,53 @@ async function handleBotMessage(
   botToken: string,
   chatId: string
 ): Promise<string | null> {
-  const t = text.toLowerCase();
+  // Telegram's own UI pushes people towards a leading slash, but only some commands
+  // listed one. "/low", "/sup", "/t" and "/bk" fell through to a stock search for
+  // their own text and answered "nothing found". Strip it once, accept both forms.
+  const bare = text.trim().startsWith("/") ? text.trim().slice(1) : text.trim();
+  const t = bare.toLowerCase();
 
-  if (["/start", "/help", "help", "hi", "hello", "hey"].includes(t)) {
+  if (["start", "help", "hi", "hello", "hey"].includes(t)) {
     return buildHelpMessage(canViewFinancials);
   }
 
   if (canViewFinancials) {
-    if (["today", "/today", "t"].includes(t)) return buildSummaryMessage("today");
-    if (["week", "/week", "w"].includes(t)) return buildSummaryMessage("week");
-    if (["month", "/month", "m"].includes(t)) return buildSummaryMessage("month");
-    if (t.startsWith("/summary") || t.startsWith("summary")) return buildSummaryMessage(t);
-    if (["report", "/report", "r"].includes(t)) return buildDailyReport();
-    if (["backup", "/backup", "bk"].includes(t)) {
+    if (["today", "t"].includes(t)) return buildSummaryMessage("today");
+    if (["week", "w"].includes(t)) return buildSummaryMessage("week");
+    if (["month", "m"].includes(t)) return buildSummaryMessage("month");
+    if (t.startsWith("summary")) return buildSummaryMessage(t);
+    if (["report", "r"].includes(t)) return buildDailyReport();
+    if (["backup", "bk"].includes(t)) {
       if (role === "ADMIN") {
         await sendFullBackupFile(botToken, chatId);
         return null; // file already sent
       }
       return await buildBackupSummary();
     }
-  } else if (["today", "/today", "week", "/week", "month", "/month", "t", "w", "m", "report", "/report", "r", "backup", "/backup", "bk"].includes(t)) {
+  } else if (["today", "week", "month", "t", "w", "m", "report", "r", "backup", "bk"].includes(t)) {
     return "🚫 Sales summaries are only available to Owner / Admin.";
   }
 
-  if (["/lowstock", "lowstock", "low", "l"].includes(t)) return buildLowStockMessage(canViewFinancials);
+  if (["lowstock", "low", "l"].includes(t)) return buildLowStockMessage(canViewFinancials);
 
-  if (canViewFinancials && ["/suppliers", "suppliers", "sup"].includes(t)) return buildSupplierReturnsMessage();
-  else if (!canViewFinancials && ["/suppliers", "suppliers", "sup"].includes(t))
+  if (canViewFinancials && ["suppliers", "sup"].includes(t)) return buildSupplierReturnsMessage();
+  else if (!canViewFinancials && ["suppliers", "sup"].includes(t))
     return "🚫 Supplier returns are only available to Owner / Admin.";
 
-  if (["/dues", "dues", "credit", "/credit"].includes(t)) {
+  if (["dues", "credit"].includes(t)) {
     if (!canViewFinancials) return "🚫 Customer dues are only available to Owner / Admin.";
     return buildDuesMessage();
   }
 
   // price/p is now just an alias for stock search (prices always shown)
-  if (t.startsWith("price ") || t.startsWith("/price ") || t.startsWith("p "))
-    return buildStockMessage(text.replace(/^\/?(price|p)\s+/i, "").trim(), canViewFinancials);
+  if (t.startsWith("price ") || t.startsWith("p "))
+    return buildStockMessage(bare.replace(/^(price|p)\s+/i, "").trim(), canViewFinancials);
 
-  if (t === "/stock" || t === "stock" || t === "s") return buildStockMessage("", canViewFinancials);
-  if (t.startsWith("/stock ")) return buildStockMessage(text.slice(7).trim(), canViewFinancials);
-  if (t.startsWith("stock ")) return buildStockMessage(text.slice(6).trim(), canViewFinancials);
-  if (t.startsWith("s ")) return buildStockMessage(text.slice(2).trim(), canViewFinancials);
+  if (t === "stock" || t === "s") return buildStockMessage("", canViewFinancials);
+  if (t.startsWith("stock ")) return buildStockMessage(bare.slice(6).trim(), canViewFinancials);
+  if (t.startsWith("s ")) return buildStockMessage(bare.slice(2).trim(), canViewFinancials);
 
-  if (t.length >= 2) return buildStockMessage(text.trim(), canViewFinancials);
+  if (t.length >= 2) return buildStockMessage(bare.trim(), canViewFinancials);
 
   return (
     `❓ *Not sure what you meant.*\n\n` +
@@ -242,37 +255,44 @@ async function handleBotMessage(
 }
 
 function buildHelpMessage(canViewFinancials: boolean): string {
-  const salesSection = canViewFinancials
-    ? `📊 *Sales*\n` +
-      `• report · r — _Full today's report (sales + low stock)_\n` +
-      `• today · t — _Quick today's totals_\n` +
-      `• week · w — _This week's totals_\n` +
-      `• month · m — _This month's totals_\n\n` +
-      `🧾 *Customer Credit*\n` +
-      `• dues · credit — _Who owes money and how much_\n\n` +
-      `🚚 *Supplier Returns*\n` +
-      `• suppliers · sup — _Pending & resolved supplier claims_\n\n` +
-      `💾 *Backup*\n` +
-      `• backup · bk — _Business snapshot (Admin: full JSON file)_\n\n`
-    : "";
+  // Search comes first: it is what the bot is used for all day.
+  const search =
+    `🔍 *Find a part*\n` +
+    `• *a06* — type any brand, model or part name\n` +
+    `• *samsung a06* — two words narrows it down\n` +
+    `• *stock* · *s* — overall stock snapshot\n` +
+    (canViewFinancials
+      ? `_Results show cost, price and margin._\n`
+      : `_Results show price and quantity._\n`) +
+    `_🟢 in stock · 🟡 running low · 🔴 out of stock_\n\n`;
 
-  const priceNote = canViewFinancials
-    ? `_Search shows cost, selling price & margin_\n\n`
-    : `_Search shows selling price & stock count_\n\n`;
+  const alerts =
+    `⚠️ *Alerts*\n` +
+    `• *low* · *l* — items at or below reorder level\n\n`;
+
+  const ownerOnly = canViewFinancials
+    ? `📊 *Sales*\n` +
+      `• *today* · *t* — today's revenue and profit\n` +
+      `• *week* · *w* — this week (Fri–Thu)\n` +
+      `• *month* · *m* — this month\n` +
+      `• *report* · *r* — full daily report\n\n` +
+      `🧾 *Customer credit*\n` +
+      `• *dues* · *credit* — who owes money, with phone numbers\n\n` +
+      `🚚 *Supplier returns*\n` +
+      `• *suppliers* · *sup* — pending and resolved claims\n\n` +
+      `💾 *Backup*\n` +
+      `• *backup* · *bk* — snapshot (Admin gets the full file)\n\n`
+    : `_Sales figures, dues and supplier claims are shown to Owner and Admin only._\n\n`;
 
   return (
     `🏪 *HM Stocks Bot*\n` +
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
-    salesSection +
-    `📦 *Stock & Prices*\n` +
-    `• a14 samsung — _Search by brand, model, or part name_\n` +
-    `• stock · s — _Overall inventory snapshot_\n` +
-    priceNote +
-    `⚠️ *Alerts*\n` +
-    `• low · l — _Items at or below their reorder level_\n\n` +
+    search +
+    alerts +
+    ownerOnly +
     `⚙️ *General*\n` +
-    `• help — _This command list_\n` +
-    `• logout — _Sign out_`
+    `• *help* — this list\n` +
+    `• *logout* — sign out (you stay signed in 2 days)`
   );
 }
 
@@ -298,32 +318,51 @@ async function buildStockMessage(query: string, canViewCosts: boolean): Promise<
     );
   }
 
-  const products = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { brand: { name: { contains: query, mode: "insensitive" } } },
-        { model: { name: { contains: query, mode: "insensitive" } } },
-        { name: { contains: query, mode: "insensitive" } },
-        { partBrand: { name: { contains: query, mode: "insensitive" } } },
-        { tags: { has: query.toLowerCase() } },
-      ],
-    },
+  const tokens = searchTokens(query);
+  const safeQuery = escapeMd(query);
+  const select = {
     include: { brand: true, model: true, partBrand: true },
-    orderBy: [{ brand: { name: "asc" } }, { name: "asc" }],
-    take: 10,
-  });
+    take: SEARCH_SCAN,
+  };
 
-  if (products.length === 0) {
-    return `❌ *Nothing found for "${query}"*\n\nTry searching by brand, model, part name, or part brand.`;
+  // Every word must match. "iphone 17" needs brand iPhone AND model 17; matching the
+  // whole phrase against one field found nothing, because they are separate columns.
+  let matches = await prisma.product.findMany({
+    where: { isActive: true, AND: tokens.map(tokenFilter) },
+    ...select,
+  });
+  let total = await prisma.product.count({
+    where: { isActive: true, AND: tokens.map(tokenFilter) },
+  });
+  let loosened = false;
+
+  // Nothing matched every word — show the closest instead of a dead end, and say so.
+  if (matches.length === 0 && tokens.length > 1) {
+    loosened = true;
+    matches = await prisma.product.findMany({
+      where: { isActive: true, OR: tokens.map(tokenFilter) },
+      ...select,
+    });
+    total = await prisma.product.count({
+      where: { isActive: true, OR: tokens.map(tokenFilter) },
+    });
   }
 
-  const lines = products.map((p) => {
+  if (matches.length === 0) {
+    return (
+      `❌ *Nothing found for "${safeQuery}"*\n\n` +
+      `Try a brand, model, part name or part brand — for example *samsung a06* or *iphone 17*.`
+    );
+  }
+
+  const ordered = rankProducts(matches, query, tokens);
+
+  const allLines = ordered.map((p) => {
     const partSuffix = p.partBrand ? ` (${escapeMd(p.partBrand.name)})` : "";
     const name = `${escapeMd(p.brand.name)}${p.model ? ` ${escapeMd(p.model.name)}` : ""} ${escapeMd(p.name)}${partSuffix}`;
     const sell = Number(p.sellingPrice);
     const cost = Number(p.costPrice);
-    const margin = sell > 0 ? ((sell - cost) / sell * 100).toFixed(0) : "0";
+    const margin = sell > 0 ? (((sell - cost) / sell) * 100).toFixed(0) : "0";
     const icon = p.stockQty === 0 ? "🔴" : p.stockQty <= p.lowStockThreshold ? "🟡" : "🟢";
 
     if (canViewCosts) {
@@ -335,12 +374,23 @@ async function buildStockMessage(query: string, canViewCosts: boolean): Promise<
     return `${icon} *${name}*\n   📦 ${p.stockQty} pcs  |  Price: *${fmt(sell)}*`;
   });
 
-  return (
-    `🔍 *"${query}"*\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n\n` +
-    lines.join("\n\n") +
-    (products.length === 10 ? "\n\n_Showing top 10 results_" : "")
-  );
+  // Show as many as the message can carry, best matches first.
+  const shownCount = fitCount(allLines);
+  const lines = allLines.slice(0, shownCount);
+
+  // Always say how many exist. Silently truncating is what made stock look missing.
+  const header = loosened
+    ? `🔍 *"${safeQuery}"* — no exact match\nClosest ${lines.length} of ${total}:`
+    : total > lines.length
+      ? `🔍 *"${safeQuery}"* — showing ${lines.length} of ${total}`
+      : `🔍 *"${safeQuery}"* — ${total} result${total > 1 ? "s" : ""}`;
+
+  const more =
+    total > lines.length
+      ? `\n\n_Add a brand or model to narrow it down, e.g. *samsung a06*_`
+      : "";
+
+  return `${header}\n━━━━━━━━━━━━━━━━━━━━\n\n` + lines.join("\n\n") + more;
 }
 
 async function buildSummaryMessage(text: string): Promise<string> {

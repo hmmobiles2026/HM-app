@@ -100,23 +100,15 @@ export default async function TelegramPage() {
 function BotCommandsHelp() {
   const groups = [
     {
-      label: "Sales Summary",
-      color: "text-emerald-400",
-      bg: "bg-emerald-950/30 border-emerald-900/40",
-      commands: [
-        { cmd: "today", shortcuts: ["t", "/today"], desc: "Today's revenue, profit & sale count" },
-        { cmd: "week", shortcuts: ["w", "/week"], desc: "This week's totals" },
-        { cmd: "month", shortcuts: ["m", "/month"], desc: "This month's totals" },
-      ],
-    },
-    {
-      label: "Stock",
+      label: "Find a part",
       color: "text-blue-400",
       bg: "bg-blue-950/30 border-blue-900/40",
+      note: "Anything the bot doesn't recognise is treated as a stock search.",
       commands: [
+        { cmd: "a06", shortcuts: [], desc: "Type any brand, model or part name" },
+        { cmd: "samsung a06", shortcuts: ["iphone 17"], desc: "Two words narrow it down — every word must match" },
         { cmd: "stock", shortcuts: ["s"], desc: "Overall stock count and health" },
-        { cmd: "stock samsung", shortcuts: ["s samsung"], desc: "Search by brand, model, or part name" },
-        { cmd: "iphone 14", shortcuts: [], desc: "Any unrecognized text is treated as a stock search" },
+        { cmd: "stock samsung", shortcuts: ["s samsung", "price a06", "p a06"], desc: "Same search, with an explicit keyword" },
       ],
     },
     {
@@ -124,7 +116,42 @@ function BotCommandsHelp() {
       color: "text-amber-400",
       bg: "bg-amber-950/30 border-amber-900/40",
       commands: [
-        { cmd: "low", shortcuts: ["/lowstock"], desc: "All items at or below their alert threshold" },
+        { cmd: "low", shortcuts: ["l", "/lowstock"], desc: "Items at or below their reorder level" },
+      ],
+    },
+    {
+      label: "Sales · Owner & Admin",
+      color: "text-emerald-400",
+      bg: "bg-emerald-950/30 border-emerald-900/40",
+      commands: [
+        { cmd: "today", shortcuts: ["t"], desc: "Today's revenue, profit and sale count" },
+        { cmd: "week", shortcuts: ["w"], desc: "This week's totals (Friday to Thursday)" },
+        { cmd: "month", shortcuts: ["m"], desc: "This month's totals" },
+        { cmd: "report", shortcuts: ["r"], desc: "Full daily report — sales, low stock, dues" },
+      ],
+    },
+    {
+      label: "Customer credit · Owner & Admin",
+      color: "text-cyan-400",
+      bg: "bg-cyan-950/30 border-cyan-900/40",
+      commands: [
+        { cmd: "dues", shortcuts: ["credit"], desc: "Who owes money and how much, with phone numbers" },
+      ],
+    },
+    {
+      label: "Supplier returns · Owner & Admin",
+      color: "text-orange-400",
+      bg: "bg-orange-950/30 border-orange-900/40",
+      commands: [
+        { cmd: "suppliers", shortcuts: ["sup"], desc: "Pending and resolved supplier claims" },
+      ],
+    },
+    {
+      label: "Backup · Owner & Admin",
+      color: "text-violet-400",
+      bg: "bg-violet-950/30 border-violet-900/40",
+      commands: [
+        { cmd: "backup", shortcuts: ["bk"], desc: "Business snapshot — Admin receives the full JSON file" },
       ],
     },
     {
@@ -132,7 +159,8 @@ function BotCommandsHelp() {
       color: "text-slate-400",
       bg: "bg-slate-900 border-slate-800",
       commands: [
-        { cmd: "help", shortcuts: ["/help", "/start"], desc: "Show the command list inside Telegram" },
+        { cmd: "help", shortcuts: ["/start"], desc: "Show the command list inside Telegram" },
+        { cmd: "logout", shortcuts: [], desc: "Sign out — sessions last 2 days anyway" },
       ],
     },
   ];
@@ -140,13 +168,24 @@ function BotCommandsHelp() {
   return (
     <div className="mt-4 max-w-lg space-y-4">
       <p className="text-slate-300 text-sm">
-        Message your bot directly in Telegram with any of these:
+        Message the bot directly in Telegram with any of these. Send your app password
+        once to sign in — it stays valid for 2 days.
       </p>
+
+      <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800">
+        <span className="text-sm">🟢🟡🔴</span>
+        <p className="text-xs text-slate-300">
+          Search results mark stock health: green in stock, amber running low, red out of
+          stock. Sellers see price and quantity; Owner and Admin also see cost and margin.
+        </p>
+      </div>
+
       {groups.map((g) => (
         <div key={g.label}>
           <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${g.color}`}>
             {g.label}
           </p>
+          {g.note && <p className="text-xs text-slate-500 mb-2">{g.note}</p>}
           <div className="space-y-1.5">
             {g.commands.map((c) => (
               <div
@@ -169,6 +208,11 @@ function BotCommandsHelp() {
           </div>
         </div>
       ))}
+
+      <p className="text-xs text-slate-500">
+        Every command also works with a leading slash — <code className="font-mono">/dues</code>{" "}
+        is the same as <code className="font-mono">dues</code>.
+      </p>
     </div>
   );
 }
