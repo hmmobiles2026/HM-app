@@ -75,7 +75,10 @@ export function QuickSaleForm({
   const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
   const [totalInput, setTotalInput] = useState("");
   const [customerId, setCustomerId] = useState("");
-  const [paidInput, setPaidInput] = useState("");
+  // null until the seller explicitly picks. Sellers were pressing Enter and the form
+  // submitted with "paid in full" pre-selected, recording money that never changed
+  // hands. Nothing is assumed now.
+  const [paidInput, setPaidInput] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(createSale, undefined);
 
   const productItems = products.map((p) => ({
@@ -152,13 +155,16 @@ export function QuickSaleForm({
 
   // ── Credit ──────────────────────────────────────────────────────────
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
-  // An empty box means "paying the whole thing", which is the common case.
-  const amountPaid = selectedCustomer
-    ? paidInput === ""
-      ? finalTotal
-      : Math.min(Math.max(0, Number(paidInput) || 0), finalTotal)
-    : finalTotal;
-  const goesOnTab = selectedCustomer ? Math.max(0, finalTotal - amountPaid) : 0;
+  /** A walk-in needs no choice; a named customer must be told what was paid. */
+  const paymentChosen = !selectedCustomer || paidInput !== null;
+  const amountPaid = !selectedCustomer
+    ? finalTotal
+    : paidInput === null
+      ? 0
+      : paidInput === ""
+        ? finalTotal
+        : Math.min(Math.max(0, Number(paidInput) || 0), finalTotal);
+  const goesOnTab = selectedCustomer && paymentChosen ? Math.max(0, finalTotal - amountPaid) : 0;
   const newBalance = selectedCustomer ? selectedCustomer.balance + goesOnTab : 0;
   const overLimitBy =
     selectedCustomer && selectedCustomer.creditLimit !== null
@@ -190,7 +196,7 @@ export function QuickSaleForm({
           value={customerId}
           onChange={(id) => {
             setCustomerId(id);
-            setPaidInput("");
+            setPaidInput(null);
           }}
           placeholder="Walk-in customer (cash)"
         />
@@ -519,10 +525,18 @@ export function QuickSaleForm({
                       type="number"
                       min={0}
                       max={finalTotal}
-                      value={paidInput !== "" ? paidInput : String(finalTotal)}
+                      value={
+                        paidInput === null
+                          ? ""
+                          : paidInput === ""
+                            ? String(finalTotal)
+                            : paidInput
+                      }
+                      placeholder="—"
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setPaidInput(e.target.value)}
                       onBlur={(e) => {
+                        if (e.target.value.trim() === "") return; // still unchosen
                         const v = Number(e.target.value);
                         if (!Number.isFinite(v) || v >= finalTotal) setPaidInput("");
                         else setPaidInput(String(Math.max(0, v)));
@@ -537,7 +551,7 @@ export function QuickSaleForm({
                     type="button"
                     onClick={() => setPaidInput("")}
                     className={`flex-1 h-9 rounded-xl text-xs font-medium transition-colors ${
-                      goesOnTab === 0
+                      paidInput === ""
                         ? "bg-emerald-600 text-white"
                         : "bg-slate-800 text-slate-400 hover:text-white"
                     }`}
@@ -548,7 +562,7 @@ export function QuickSaleForm({
                     type="button"
                     onClick={() => setPaidInput("0")}
                     className={`flex-1 h-9 rounded-xl text-xs font-medium transition-colors ${
-                      amountPaid === 0
+                      paidInput !== null && amountPaid === 0
                         ? "bg-blue-600 text-white"
                         : "bg-slate-800 text-slate-400 hover:text-white"
                     }`}
@@ -556,6 +570,17 @@ export function QuickSaleForm({
                     Nothing yet
                   </button>
                 </div>
+
+                {!paymentChosen && (
+                  <div className="flex items-start gap-2 rounded-xl bg-slate-800 border border-slate-600 px-3 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-300">
+                      Choose <span className="font-semibold text-white">Paid in full</span> or{" "}
+                      <span className="font-semibold text-white">Nothing yet</span> — or type the
+                      amount received. Nothing is assumed.
+                    </p>
+                  </div>
+                )}
 
                 {goesOnTab > 0 && (
                   <div className="space-y-1 rounded-xl bg-blue-950/40 border border-blue-900 px-3 py-2.5">
@@ -629,18 +654,22 @@ export function QuickSaleForm({
                   {state.error}
                 </p>
               )}
-              <Button type="submit" disabled={pending || cart.length === 0}
+              <Button type="submit" disabled={pending || cart.length === 0 || !paymentChosen}
                 className={`w-full h-12 rounded-xl font-bold text-base ${
-                  goesOnTab > 0
-                    ? "bg-blue-600 hover:bg-blue-500 active:bg-blue-700"
-                    : "bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700"
+                  !paymentChosen
+                    ? "bg-slate-700 text-slate-400"
+                    : goesOnTab > 0
+                      ? "bg-blue-600 hover:bg-blue-500 active:bg-blue-700"
+                      : "bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700"
                 }`}>
                 <ShoppingCart className="h-5 w-5 mr-2" />
                 {pending
                   ? "Processing…"
-                  : goesOnTab > 0
-                    ? `Complete Sale — LKR ${goesOnTab.toLocaleString("en-LK")} on credit`
-                    : `Complete Sale — LKR ${finalTotal.toLocaleString("en-LK")}`}
+                  : !paymentChosen
+                    ? "Choose how much was paid"
+                    : goesOnTab > 0
+                      ? `Complete Sale — LKR ${goesOnTab.toLocaleString("en-LK")} on credit`
+                      : `Complete Sale — LKR ${finalTotal.toLocaleString("en-LK")}`}
               </Button>
             </form>
           </div>
