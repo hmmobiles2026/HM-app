@@ -37,5 +37,10 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|.*\\.png$|.*\\.ico$).*)"],
+  // The web manifest must stay public. Browsers fetch it without credentials, so
+  // redirecting it to /login left the installed app with no name or icon — the PNGs
+  // were already excluded here, which is why they served fine and the manifest did not.
+  matcher: [
+    "/((?!api|_next/static|_next/image|.*\\.png$|.*\\.ico$|.*\\.svg$|.*\\.webmanifest$).*)",
+  ],
 };
