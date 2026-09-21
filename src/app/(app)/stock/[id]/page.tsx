@@ -5,6 +5,7 @@ import { ProductForm } from "../product-form";
 import { StockHistory } from "./stock-history";
 import { PriceHistory } from "./price-history";
 import { StockInForm } from "./stock-in-form";
+import { AdjustStockForm } from "./adjust-stock-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function ProductDetailPage({
@@ -126,7 +127,25 @@ export default async function ProductDetailPage({
         )}
         {canEdit && (
           <TabsContent value="stock-in">
-            <StockInForm productId={product.id} suppliers={suppliers} />
+            <div className="space-y-4">
+              <StockInForm productId={product.id} suppliers={suppliers} />
+              <div className="border-t border-slate-800 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                  Something wrong with the stock?
+                </p>
+                <p className="text-xs text-slate-500 mb-3">
+                  Damaged, wrong item delivered, lost, or a miscount — correct it here so
+                  the figure stays honest.
+                </p>
+                <AdjustStockForm
+                  productId={product.id}
+                  productName={product.name}
+                  stockQty={product.stockQty}
+                  costPrice={Number(product.costPrice)}
+                  suppliers={suppliers}
+                />
+              </div>
+            </div>
           </TabsContent>
         )}
         <TabsContent value="history">

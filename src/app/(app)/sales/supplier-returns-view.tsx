@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { resolveSupplierReturn, cancelSupplierReturn } from "@/app/actions/returns";
+import { resolveStockClaim } from "@/app/actions/stock";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -278,17 +279,121 @@ function HistoryCard({ r }: { r: SupplierReturn }) {
   );
 }
 
+export type StockClaimRow = {
+  id: string;
+  productLabel: string;
+  quantity: number;
+  claimAmount: number;
+  supplierName: string | null;
+  reason: string | null;
+  note: string | null;
+  status: "PENDING" | "RESOLVED";
+  resolvedAt: Date | null;
+  createdAt: Date;
+};
+
+const REASON_LABEL: Record<string, string> = {
+  DAMAGED: "Damaged",
+  WRONG_ITEM: "Wrong item received",
+  LOST: "Lost",
+  COUNT_CORRECTION: "Count correction",
+  OTHER: "Other",
+};
+
+/**
+ * A claim on stock that never reached a sale — damaged or wrong on arrival. Shown
+ * beside sale-based returns so a supplier is chased from one screen, not two.
+ */
+function StockClaimCard({ c, isAdmin }: { c: StockClaimRow; isAdmin: boolean }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const settled = c.status === "RESOLVED";
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        settled ? "bg-slate-900 border-slate-800" : "bg-slate-900 border-amber-900/50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{c.productLabel}</p>
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300">
+              From stock
+            </span>
+            {c.reason && (
+              <span className="text-xs text-slate-400">
+                {REASON_LABEL[c.reason] ?? c.reason}
+              </span>
+            )}
+            <span className="text-xs text-slate-500">Qty {c.quantity}</span>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xs text-slate-500 leading-none">Claim</p>
+          <p className="text-base font-bold text-amber-200 leading-tight">
+            {lkr(c.claimAmount)}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-400 mt-2">
+        <Truck className="h-3 w-3 inline mr-1" />
+        {c.supplierName ?? "—"}
+        {c.note && <span className="text-slate-500"> · {c.note}</span>}
+      </p>
+
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
+        <p className="text-xs text-slate-600">
+          {format(new Date(c.createdAt), "dd MMM yyyy")}
+          {settled && c.resolvedAt && ` · settled ${format(new Date(c.resolvedAt), "dd MMM")}`}
+        </p>
+        {settled ? (
+          <span className="text-xs text-emerald-400">Recovered</span>
+        ) : (
+          isAdmin && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                start(async () => {
+                  const r = await resolveStockClaim(c.id);
+                  if (r?.error) toast.error(r.error);
+                  else {
+                    toast.success(r?.success ?? "Resolved.");
+                    router.refresh();
+                  }
+                })
+              }
+              className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Mark as recovered
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SupplierReturnsView({
   returns,
+  stockClaims,
   isAdmin,
 }: {
   returns: SupplierReturn[];
+  stockClaims: StockClaimRow[];
   isAdmin: boolean;
 }) {
   const pending = returns.filter((r) => r.supplierStatus === "PENDING");
-  const totalPending = pending.reduce((s, r) => s + (r.costRecovery ?? 0), 0);
+  const pendingClaims = stockClaims.filter((c) => c.status === "PENDING");
+  const totalPending =
+    pending.reduce((s, r) => s + (r.costRecovery ?? 0), 0) +
+    pendingClaims.reduce((s, c) => s + c.claimAmount, 0);
 
-  if (returns.length === 0) {
+  if (returns.length === 0 && stockClaims.length === 0) {
     return (
       <div className="flex flex-col items-center py-20 text-slate-600">
         <Truck className="h-10 w-10 mb-3 opacity-20" />
@@ -333,7 +438,7 @@ export function SupplierReturnsView({
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-amber-400" />
                   <span className="text-sm font-medium text-amber-300">
-                    {pending.length} pending claim{pending.length !== 1 ? "s" : ""}
+                    {pending.length + pendingClaims.length} pending claim{pending.length + pendingClaims.length !== 1 ? "s" : ""}
                   </span>
                 </div>
                 <div className="text-right">
@@ -347,6 +452,9 @@ export function SupplierReturnsView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {pending.map((r) => (
                 <PendingCard key={r.id} r={r} isAdmin={isAdmin} />
+              ))}
+              {pendingClaims.map((c) => (
+                <StockClaimCard key={c.id} c={c} isAdmin={isAdmin} />
               ))}
             </div>
           </>

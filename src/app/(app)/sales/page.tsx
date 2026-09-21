@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { getCustomerBalanceMap, getSaleCreditMap } from "@/lib/customers";
 import { getWarrantyDefaults } from "@/lib/warranty";
+import { getStockClaims } from "@/lib/stock-adjustments";
 import { warrantyStatus, warrantyStatusLabel } from "@/lib/warranty-math";
 import { format } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
@@ -66,7 +67,7 @@ export default async function SalesPage({
   const isAdminOrOwner = session.role !== "SELLER";
   const showFinancials = isAdminOrOwner;
 
-  const [rawProducts, rawSales, suppliers, supplierReturns, rawCustomers, balances, warrantyDefaults] =
+  const [rawProducts, rawSales, suppliers, supplierReturns, rawCustomers, balances, warrantyDefaults, stockClaims] =
     await Promise.all([
     prisma.product.findMany({
       where: { isActive: true, stockQty: { gt: 0 } },
@@ -109,6 +110,8 @@ export default async function SalesPage({
     }),
     getCustomerBalanceMap(),
     getWarrantyDefaults(),
+    // Supplier claims raised on stock that never reached a sale.
+    isAdminOrOwner ? getStockClaims() : [],
   ]);
 
   const customers = rawCustomers.map((c) => ({
@@ -206,7 +209,7 @@ export default async function SalesPage({
         </TabsContent>
         {isAdminOrOwner && (
           <TabsContent value="supplier-returns">
-            <SupplierReturnsView returns={returns} isAdmin={isAdminOrOwner} />
+            <SupplierReturnsView returns={returns} stockClaims={stockClaims} isAdmin={isAdminOrOwner} />
           </TabsContent>
         )}
       </Tabs>

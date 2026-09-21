@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { verifySession } from "@/lib/dal";
+import { verifySession, verifyRole } from "@/lib/dal";
+import { roundMoney } from "@/lib/credit-math";
 import { v2 as cloudinary } from "cloudinary";
 import { notifyStockIn } from "@/lib/telegram";
 import { after } from "next/server";
@@ -345,4 +346,136 @@ export async function recoverProduct(id: string): Promise<{ error?: string; succ
 
   revalidatePath("/stock");
   return { success: "Product recovered." };
+}
+
+// ── Stock adjustments ────────────────────────────────────────────────────────
+
+export type StockAdjustState = { error?: string; success?: string } | undefined;
+
+const AdjustSchema = z.object({
+  direction: z.enum(["remove", "add"]),
+  quantity: z.coerce.number().int().positive("Quantity must be at least 1."),
+  reason: z.enum(["DAMAGED", "WRONG_ITEM", "LOST", "COUNT_CORRECTION", "OTHER"]),
+  note: z.string().trim().optional(),
+  claim: z.string().optional(),
+  supplierId: z.string().optional(),
+  claimAmount: z.string().optional(),
+});
+
+const REASON_LABEL: Record<string, string> = {
+  DAMAGED: "Damaged",
+  WRONG_ITEM: "Wrong item received",
+  LOST: "Lost",
+  COUNT_CORRECTION: "Count correction",
+  OTHER: "Other",
+};
+
+/**
+ * Correct a stock count, with a stated reason.
+ *
+ * The only way stock can move outside a sale or a stock-in. Before this existed there
+ * was no way to record a damaged part at all: the count stayed wrong, or somebody rang
+ * up a fake sale. The ADJUSTMENT movements it writes are what the stock history and
+ * the daily report's "written off today" section have always been reading.
+ *
+ * Owner and Admin only — letting sellers make stock disappear is how shrinkage hides.
+ */
+export async function adjustStock(
+  productId: string,
+  _state: StockAdjustState,
+  formData: FormData
+): Promise<StockAdjustState> {
+  const session = await verifyRole(["ADMIN", "OWNER"]);
+
+  const parsed = AdjustSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+    return { error: msgs[0] ?? "Check the details and try again." };
+  }
+
+  const { direction, quantity, reason, note, supplierId } = parsed.data;
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true, name: true, stockQty: true, costPrice: true, isActive: true },
+  });
+  if (!product) return { error: "Product not found." };
+  if (!product.isActive) return { error: "This product has been deleted." };
+
+  const removing = direction === "remove";
+  if (removing && quantity > product.stockQty) {
+    return {
+      error: `Only ${product.stockQty} in stock — cannot remove ${quantity}.`,
+    };
+  }
+
+  const unitCost = Number(product.costPrice);
+  const signed = removing ? -quantity : quantity;
+
+  // A claim only makes sense for stock going out, and only against a named supplier.
+  const wantsClaim = parsed.data.claim === "true" || parsed.data.claim === "on";
+  const claiming = wantsClaim && removing && !!supplierId;
+  if (wantsClaim && removing && !supplierId) {
+    return { error: "Choose which supplier you are claiming from." };
+  }
+
+  let claimAmount: number | null = null;
+  if (claiming) {
+    const raw = Number(parsed.data.claimAmount);
+    // Defaults to what the stock cost you, which is what you are actually out of pocket.
+    claimAmount = Number.isFinite(raw) && raw > 0 ? roundMoney(raw) : roundMoney(unitCost * quantity);
+  }
+
+  await prisma.$transaction([
+    prisma.product.update({
+      where: { id: productId },
+      data: { stockQty: { increment: signed } },
+    }),
+    prisma.stockMovement.create({
+      data: {
+        productId,
+        type: "ADJUSTMENT",
+        quantity: signed,
+        reason,
+        unitCost,
+        note: note || null,
+        supplierId: claiming ? supplierId! : null,
+        claimAmount,
+        claimStatus: claiming ? "PENDING" : null,
+        userId: session.userId,
+      },
+    }),
+  ]);
+
+  revalidatePath("/stock");
+  revalidatePath(`/stock/${productId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/sales");
+
+  const verb = removing ? "Removed" : "Added";
+  const claimNote = claiming
+    ? ` Claim of LKR ${claimAmount!.toLocaleString("en-LK")} raised with the supplier.`
+    : "";
+  return {
+    success: `${verb} ${quantity} × ${product.name} — ${REASON_LABEL[reason]}.${claimNote}`,
+  };
+}
+
+/** Mark a supplier claim on a stock adjustment as settled. */
+export async function resolveStockClaim(movementId: string): Promise<StockAdjustState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+  const m = await prisma.stockMovement.findUnique({
+    where: { id: movementId },
+    select: { claimStatus: true },
+  });
+  if (!m?.claimStatus) return { error: "That is not an open claim." };
+  if (m.claimStatus === "RESOLVED") return { error: "Already resolved." };
+
+  await prisma.stockMovement.update({
+    where: { id: movementId },
+    data: { claimStatus: "RESOLVED", resolvedAt: new Date() },
+  });
+  revalidatePath("/sales");
+  revalidatePath("/stock");
+  return { success: "Claim marked as resolved." };
 }

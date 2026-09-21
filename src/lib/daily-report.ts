@@ -53,8 +53,10 @@ export async function buildDailyReport(): Promise<string> {
       ORDER BY p."stockQty" ASC
       LIMIT 10
     `,
-    prisma.$queryRaw<{ name: string; brandName: string; partBrandName: string | null; quantity: number; note: string | null }[]>`
-      SELECT p.name, b.name as "brandName", pb.name as "partBrandName", sm.quantity, sm.note
+    prisma.$queryRaw<{ name: string; brandName: string; partBrandName: string | null; quantity: number; note: string | null; reason: string | null; unitCost: string | null; claimAmount: string | null; claimStatus: string | null }[]>`
+      SELECT p.name, b.name as "brandName", pb.name as "partBrandName", sm.quantity, sm.note,
+             sm.reason::text as reason, sm."unitCost"::text as "unitCost",
+             sm."claimAmount"::text as "claimAmount", sm."claimStatus"::text as "claimStatus"
       FROM "StockMovement" sm
       JOIN "Product" p ON p.id = sm."productId"
       JOIN "Brand" b ON b.id = p."brandId"
@@ -179,13 +181,34 @@ export async function buildDailyReport(): Promise<string> {
       }).join("\n")
     : "✅ All stock levels OK";
 
+  const reasonLabel: Record<string, string> = {
+    DAMAGED: "damaged",
+    WRONG_ITEM: "wrong item",
+    LOST: "lost",
+    COUNT_CORRECTION: "miscount",
+    OTHER: "other",
+  };
+  // Claimed stock is not a loss — the supplier is covering it. Only the shortfall is.
+  const lostValue = lostStock.reduce((s, m) => {
+    const cost = Number(m.unitCost ?? 0) * Math.abs(m.quantity);
+    const claim = Number(m.claimAmount ?? 0);
+    return s + (m.claimStatus ? Math.max(0, cost - claim) : cost);
+  }, 0);
+  const claimedValue = lostStock.reduce(
+    (s, m) => s + (m.claimStatus ? Number(m.claimAmount ?? 0) : 0),
+    0
+  );
   const lostSection = lostStock.length > 0
     ? `━━━━━━━━━━━━━━━━━━━━\n` +
       `📉 *WRITTEN OFF TODAY*\n` +
+      (lostValue > 0 ? `Cost not recoverable: *${fmt(lostValue)}*\n` : "") +
+      (claimedValue > 0 ? `🚚 Claimed from suppliers: *${fmt(claimedValue)}*\n` : "") +
       lostStock.map((m) => {
-        const note = m.note ? ` _(${escapeMd(m.note)})_` : "";
+        const why = m.reason ? ` _(${reasonLabel[m.reason] ?? m.reason.toLowerCase()})_` : "";
+        const note = m.note ? ` — ${escapeMd(m.note)}` : "";
         const partSuffix = m.partBrandName ? ` (${escapeMd(m.partBrandName)})` : "";
-        return `• ${escapeMd(m.brandName)} — ${escapeMd(m.name)}${partSuffix}: *${Math.abs(m.quantity)}* pcs${note}`;
+        const claimed = m.claimStatus ? " 🚚 claimed" : "";
+        return `• ${escapeMd(m.brandName)} — ${escapeMd(m.name)}${partSuffix}: *${Math.abs(m.quantity)}* pcs${why}${claimed}${note}`;
       }).join("\n") + "\n\n"
     : "";
 

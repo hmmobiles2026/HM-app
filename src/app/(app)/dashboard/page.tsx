@@ -1,6 +1,6 @@
 ﻿import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { getLicenseStatus } from "@/lib/license";
+import { getLicenseStatus, canSeeLicenseWarning } from "@/lib/license";
 import { DashboardCards } from "./dashboard-cards";
 import { RecentSalesChart } from "./recent-sales-chart";
 import { LowStockAlert } from "./low-stock-alert";
@@ -10,6 +10,8 @@ import { SlowMoving } from "./slow-moving";
 import { AccountingOverview } from "./accounting-overview";
 import { PendingReturnsSummary } from "./pending-returns-summary";
 import { CustomerDuesSummary } from "./customer-dues-summary";
+import { StockLossSummary } from "./stock-loss-summary";
+import { getStockLossSummary } from "@/lib/stock-adjustments";
 import { getReceivablesSummary } from "@/lib/customers";
 import { startOfDay, subDays, startOfWeek, startOfMonth, subMonths, endOfMonth, subWeeks, endOfWeek } from "date-fns";
 import Link from "next/link";
@@ -46,6 +48,7 @@ async function getDashboardData(role: string) {
     monthlySummary,
     receivables,
     yesterdaySales,
+    stockLosses,
   ] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: { gte: today } },
@@ -189,6 +192,8 @@ async function getDashboardData(role: string) {
       _sum: { totalRevenue: true, profit: true },
       _count: true,
     }),
+    // Stock written off. Its own figure — never deducted from sale profit.
+    getStockLossSummary(),
   ]);
 
   return {
@@ -233,6 +238,7 @@ async function getDashboardData(role: string) {
       value: pendingReturnsAgg._sum.costRecovery?.toNumber() ?? 0,
     },
     receivables,
+    stockLosses,
     accounting: {
       thisMonth: {
         revenue: thisMonthAgg._sum.totalRevenue?.toNumber() ?? 0,
@@ -309,21 +315,21 @@ export default async function DashboardPage() {
           <ShieldOff className="h-5 w-5 text-red-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-red-300">Telegram alerts disabled — license expired</p>
-            <p className="text-xs text-red-400/80 mt-0.5">Contact HM Stocks support to renew (LKR 2,000 / 3 months)</p>
+            <p className="text-xs text-red-400/80 mt-0.5">Contact HM Stocks support to renew ({license.renewalText})</p>
           </div>
           {session.role === "ADMIN" && (
             <Link href="/settings" className="text-xs text-red-300 underline shrink-0">Activate →</Link>
           )}
         </div>
       )}
-      {!license.trialNotStarted && !license.expired && license.warningSoon && (
+      {!license.trialNotStarted && !license.expired && license.warningSoon && canSeeLicenseWarning(license, session.role) && (
         <div className="flex items-center gap-3 px-4 py-3 bg-amber-950/60 border border-amber-800 rounded-2xl">
           <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-300">
               {license.isTrial ? "Free trial" : "License"} expires in {license.daysLeft} day{license.daysLeft !== 1 ? "s" : ""}
             </p>
-            <p className="text-xs text-amber-400/80 mt-0.5">Renew to keep Telegram alerts active (LKR 2,000 / 3 months)</p>
+            <p className="text-xs text-amber-400/80 mt-0.5">Renew to keep Telegram alerts active ({license.renewalText})</p>
           </div>
           {session.role === "ADMIN" && (
             <Link href="/settings" className="text-xs text-amber-300 underline shrink-0">Renew →</Link>
@@ -379,7 +385,7 @@ export default async function DashboardPage() {
             <h2 className="text-base font-semibold text-slate-300 mb-3">Accounting Overview</h2>
             <AccountingOverview accounting={data.accounting} />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div>
               <h2 className="text-base font-semibold text-slate-300 mb-3">Pending Supplier Returns</h2>
               <PendingReturnsSummary
@@ -394,6 +400,17 @@ export default async function DashboardPage() {
                 shopsWithDues={data.receivables.shopsWithDues}
                 overdue30={data.receivables.overdue30}
                 collectedThisMonth={data.receivables.collectedThisMonth}
+              />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-300 mb-3">Stock Losses</h2>
+              <StockLossSummary
+                lossValue={data.stockLosses.lossValue}
+                pendingClaimValue={data.stockLosses.pendingClaimValue}
+                recoveredValue={data.stockLosses.recoveredValue}
+                units={data.stockLosses.units}
+                claimedUnits={data.stockLosses.claimedUnits}
+                byReason={data.stockLosses.byReason}
               />
             </div>
           </div>

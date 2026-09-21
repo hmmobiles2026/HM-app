@@ -168,11 +168,24 @@ enum MovementType {
   RETURN
 }
 
+// Why stock was adjusted. Required on ADJUSTMENT rows so a count can never change
+// without a stated cause — "stock went down and nobody knows why" is the thing this
+// exists to prevent.
+enum StockAdjustmentReason {
+  DAMAGED
+  WRONG_ITEM
+  LOST
+  COUNT_CORRECTION
+  OTHER
+}
+
 model StockMovement {
   id         String       @id @default(cuid())
   product    Product      @relation(fields: [productId], references: [id])
   productId  String
   type       MovementType
+  // Signed on ADJUSTMENT rows: negative removes stock (damaged, lost), positive
+  // corrects a count upwards when more is found than the system shows.
   quantity   Int
   note       String?
   supplier   Supplier?    @relation(fields: [supplierId], references: [id])
@@ -180,6 +193,21 @@ model StockMovement {
   createdBy  User         @relation(fields: [userId], references: [id])
   userId     String
   createdAt  DateTime     @default(now())
+
+  // ── Adjustment detail. All null on IN / OUT / RETURN rows. ─────────────────
+  reason      StockAdjustmentReason?
+  // Cost at the moment of the adjustment, so the value of a loss cannot drift when
+  // the product is later repriced.
+  unitCost    Decimal?              @db.Decimal(10, 2)
+  // Set only when the loss is being claimed back from the supplier. Reuses the same
+  // PENDING/RESOLVED states as supplier returns so both can be chased in one place.
+  claimAmount Decimal?              @db.Decimal(10, 2)
+  claimStatus SupplierReturnStatus?
+  resolvedAt  DateTime?
+
+  @@index([productId, createdAt])
+  @@index([type, createdAt])
+  @@index([claimStatus])
 }
 
 // ─── Customers (Credit / Accounts Receivable) ────────────────────────────────
@@ -347,6 +375,15 @@ model WarrantyConfig {
 
 // ─── Licensing ───────────────────────────────────────────────────────────────
 
+// Who sees the "expires soon" warning. The EXPIRED notice is deliberately not
+// configurable — when a licence lapses the bot stops answering and notifications
+// stop, and hiding the reason only produces a confused support call.
+enum LicenseNoticeAudience {
+  EVERYONE
+  OWNER_ADMIN
+  NOBODY
+}
+
 model AppLicense {
   id               String    @id @default(cuid())
   installedAt      DateTime  @default(now())
@@ -354,6 +391,16 @@ model AppLicense {
   licensedUntil    DateTime?
   forceDeactivated Boolean   @default(false)
   updatedAt        DateTime  @updatedAt
+
+  // ── Renewal reminders, set by the vendor in Settings (Admin only) ──────────
+  // Days before expiry to start warning. 0 turns the warning off entirely.
+  warnDaysBefore    Int                   @default(30)
+  warningAudience   LicenseNoticeAudience @default(EVERYONE)
+  telegramReminders Boolean               @default(true)
+  // Shown in the banner and in the bot's expired reply, so the wording matches what
+  // this shop is actually charged. Falls back to the built-in text when null.
+  renewalText       String?
+  supportContact    String?
 }
 
 // ─── WhatsApp ─────────────────────────────────────────────────────────────────
