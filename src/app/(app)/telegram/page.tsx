@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { TelegramConfigForm } from "./telegram-config-form";
 import { TelegramLogs } from "./telegram-logs";
 import { TelegramRecipients } from "./telegram-recipients";
+import { TelegramNotifications } from "./telegram-notifications";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function TelegramPage() {
@@ -82,6 +83,18 @@ export default async function TelegramPage() {
                 primaryChatId={config.chatId}
                 extraChatIds={config.extraChatIds}
                 knownChats={knownChats}
+              />
+            )}
+            {config && (
+              <TelegramNotifications
+                notifySale={config.notifySale}
+                notifyLowStock={config.notifyLowStock}
+                notifyStockIn={config.notifyStockIn}
+                dailyReportEnabled={config.dailyReportEnabled}
+                autoBackupEnabled={config.autoBackupEnabled}
+                quietHoursEnabled={config.quietHoursEnabled}
+                quietFrom={config.quietFrom}
+                quietTo={config.quietTo}
               />
             )}
           </div>

@@ -238,3 +238,44 @@ export async function getKnownTelegramChats(): Promise<
   });
   return sessions.map((s) => ({ chatId: s.chatId, name: s.user.name, role: s.role }));
 }
+
+/**
+ * Notification preferences: which alerts go out, whether the end-of-day jobs run, and
+ * quiet hours.
+ *
+ * There is deliberately no time picker. Vercel reads cron times from vercel.json at
+ * deploy time, so a time chosen here could not be honoured — and a time set later
+ * than the single daily run would mean the report never went out at all.
+ */
+export async function updateTelegramNotifications(
+  _state: TelegramState,
+  formData: FormData
+): Promise<TelegramState> {
+  await verifyRole(["ADMIN", "OWNER"]);
+
+  const config = await prisma.telegramConfig.findFirst();
+  if (!config) return { error: "Set up the bot first." };
+
+  const time = (key: string, fallback: string) => {
+    const v = (formData.get(key) as string | null)?.trim() ?? "";
+    return /^([01]?\d|2[0-3]):[0-5]\d$/.test(v) ? v : fallback;
+  };
+  const on = (key: string) => formData.get(key) === "true";
+
+  await prisma.telegramConfig.update({
+    where: { id: config.id },
+    data: {
+      notifySale: on("notifySale"),
+      notifyLowStock: on("notifyLowStock"),
+      notifyStockIn: on("notifyStockIn"),
+      dailyReportEnabled: on("dailyReportEnabled"),
+      autoBackupEnabled: on("autoBackupEnabled"),
+      quietHoursEnabled: on("quietHoursEnabled"),
+      quietFrom: time("quietFrom", config.quietFrom),
+      quietTo: time("quietTo", config.quietTo),
+    },
+  });
+
+  revalidatePath("/telegram");
+  return { success: "Notification settings saved." };
+}

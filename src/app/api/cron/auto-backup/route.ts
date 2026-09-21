@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { broadcastTelegramMessage, broadcastTelegramDocument } from "@/lib/telegram";
 import { getLicenseStatus } from "@/lib/license";
+import { reportDay } from "@/lib/notify-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,26 @@ export async function GET(req: Request) {
   }
 
   const license = await getLicenseStatus();
+
+  if (!config.autoBackupEnabled) {
+    return NextResponse.json({ skipped: true, reason: "Auto backup switched off" });
+  }
+
+  // The day being closed. The backup runs just after the report, which can be either
+  // side of midnight, so both jobs anchor on the same day rather than the clock.
+  const day = reportDay();
+  if (config.lastAutoBackupOn === day) {
+    return NextResponse.json({ skipped: true, reason: `Already sent for ${day}` });
+  }
+
+  // Claim the day before building the file, so a retry cannot send it twice.
+  const claimed = await prisma.telegramConfig.updateMany({
+    where: { id: config.id, lastAutoBackupOn: config.lastAutoBackupOn },
+    data: { lastAutoBackupOn: day },
+  });
+  if (claimed.count === 0) {
+    return NextResponse.json({ skipped: true, reason: "Another run got there first" });
+  }
 
   const [brands, categories, products, sales, movements, users] = await Promise.all([
     prisma.brand.findMany({ include: { models: true } }),
@@ -42,7 +63,12 @@ export async function GET(req: Request) {
 
   const now = new Date();
   const slNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-  const dateLabel = slNow.toLocaleDateString("en-LK", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+  // Label the day the backup covers, not the clock. These used to disagree: the
+  // filename took the UTC date and the caption the Sri Lanka one, which name
+  // different days for every backup taken after 18:30 UTC.
+  const dateLabel = new Date(`${day}T12:00:00.000Z`).toLocaleDateString("en-LK", {
+    day: "2-digit", month: "long", year: "numeric", timeZone: "UTC",
+  });
 
   const backup = {
     exportedAt: now.toISOString(),
@@ -106,8 +132,7 @@ export async function GET(req: Request) {
     },
   };
 
-  const date = now.toISOString().slice(0, 10);
-  const filename = `hm-stocks-backup-${date}.json`;
+  const filename = `hm-stocks-backup-${day}.json`;
   const content = JSON.stringify(backup, null, 2);
 
   const totalRevenue = sales.reduce((s, x) => s + x.totalRevenue.toNumber(), 0);
@@ -136,5 +161,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ sent: false, error: "Telegram document upload failed" });
   }
 
-  return NextResponse.json({ sent: true, products: products.length, sales: sales.length });
+  return NextResponse.json({ sent: true, day, products: products.length, sales: sales.length });
 }

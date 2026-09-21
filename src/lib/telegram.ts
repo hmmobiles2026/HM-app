@@ -1,5 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { getLicenseStatus } from "@/lib/license";
+import { isQuietNow } from "@/lib/notify-schedule";
+
+/** Quiet hours apply to live alerts only, never to the scheduled report or backup. */
+function isQuiet(config: {
+  quietHoursEnabled: boolean;
+  quietFrom: string;
+  quietTo: string;
+}): boolean {
+  return isQuietNow({
+    enabled: config.quietHoursEnabled,
+    from: config.quietFrom,
+    to: config.quietTo,
+  });
+}
 
 function esc(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -22,6 +36,7 @@ export async function notifyLowStock(products: LowStockProduct[]): Promise<void>
     prisma.telegramConfig.findFirst().catch(() => null),
   ]);
   if (!license.active || !config) return;
+  if (!config.notifyLowStock || isQuiet(config)) return;
 
   const now = new Date().toLocaleString("en-LK", {
     timeZone: "Asia/Colombo",
@@ -67,6 +82,7 @@ export async function notifyStockIn(
     prisma.telegramConfig.findFirst().catch(() => null),
   ]);
   if (!license.active || !config) return;
+  if (!config.notifyStockIn || isQuiet(config)) return;
 
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
   const time = new Date().toLocaleString("en-LK", {
@@ -130,6 +146,7 @@ export async function notifySale(
     prisma.telegramConfig.findFirst().catch(() => null),
   ]);
   if (!license.active || !config) return;
+  if (!config.notifySale || isQuiet(config)) return;
 
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
   const time = new Date().toLocaleString("en-LK", {

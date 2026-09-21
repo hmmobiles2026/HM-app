@@ -1,21 +1,30 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getReceivablesSummary } from "@/lib/customers";
+import { reportDay, slDayBounds, SL_OFFSET_MS } from "@/lib/notify-schedule";
 
 function escapeMd(s: string): string {
   return s.replace(/[_*`[]/g, "\\$&");
 }
 
-export async function buildDailyReport(): Promise<string> {
-  const slOffset = 5.5 * 60 * 60 * 1000;
-  const now = new Date();
-  const slNow = new Date(now.getTime() + slOffset);
-  const slStartOfDay = new Date(
-    Date.UTC(slNow.getUTCFullYear(), slNow.getUTCMonth(), slNow.getUTCDate()) - slOffset
-  );
+/**
+ * The day's trading summary.
+ *
+ * `day` is a Sri Lanka calendar date (YYYY-MM-DD) and the report covers all of it,
+ * midnight to midnight — a day that has already finished. It is NOT "since midnight
+ * until now": this shop takes most of its money between 22:00 and midnight, so a
+ * report that stopped at the moment it ran would leave out the busiest hours.
+ */
+export async function buildDailyReport(day: string = reportDay()): Promise<string> {
+  const slOffset = SL_OFFSET_MS;
+  const { start: slStartOfDay, end: slEndOfDay } = slDayBounds(day);
+  const dayRange = { gte: slStartOfDay, lt: slEndOfDay };
 
-  const weekday = slNow.toLocaleDateString("en-LK", { weekday: "long", timeZone: "UTC" });
-  const date = slNow.toLocaleDateString("en-LK", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
+  // Midday on the reported day, so formatting the label can never slip either side of
+  // a boundary.
+  const slLabelDate = new Date(`${day}T12:00:00.000Z`);
+  const weekday = slLabelDate.toLocaleDateString("en-LK", { weekday: "long", timeZone: "UTC" });
+  const date = slLabelDate.toLocaleDateString("en-LK", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" });
   const fmt = (n: number) => `LKR ${n.toLocaleString("en-LK")}`;
 
   const [
@@ -29,12 +38,12 @@ export async function buildDailyReport(): Promise<string> {
     topDebtors,
   ] = await Promise.all([
     prisma.sale.aggregate({
-      where: { createdAt: { gte: slStartOfDay } },
+      where: { createdAt: dayRange },
       _sum: { totalRevenue: true, totalCost: true, profit: true },
       _count: true,
     }),
     prisma.sale.findMany({
-      where: { createdAt: { gte: slStartOfDay } },
+      where: { createdAt: dayRange },
       include: {
         items: {
           include: {
@@ -64,6 +73,7 @@ export async function buildDailyReport(): Promise<string> {
       WHERE sm.type = 'ADJUSTMENT'
         AND sm.quantity < 0
         AND sm."createdAt" >= ${slStartOfDay}
+        AND sm."createdAt" < ${slEndOfDay}
       ORDER BY sm."createdAt" DESC
       LIMIT 10
     `,
@@ -80,7 +90,7 @@ export async function buildDailyReport(): Promise<string> {
     // ── Customer credit ──────────────────────────────────────────────────────
     getReceivablesSummary(),
     prisma.customerLedger.aggregate({
-      where: { type: "PAYMENT", createdAt: { gte: slStartOfDay } },
+      where: { type: "PAYMENT", createdAt: dayRange },
       _sum: { amount: true },
     }),
     prisma.$queryRaw<{ shopName: string; balance: string }[]>`
@@ -121,7 +131,7 @@ export async function buildDailyReport(): Promise<string> {
     `📅 ${weekday}, ${date}\n` +
     `━━━━━━━━━━━━━━━━━━━━`;
 
-  // Credit owed by customer shops. Independent of today's trading, so it is shown
+  // Credit owed by customer shops. Independent of the day's trading, so it is shown
   // even on a day with no sales. Revenue above already counts these amounts —
   // this section is about cash not yet collected.
   const paidToday = collectedToday._sum.amount?.toNumber() ?? 0;
@@ -131,7 +141,7 @@ export async function buildDailyReport(): Promise<string> {
         `🧾 *CUSTOMER CREDIT*\n` +
         `Outstanding: *${fmt(receivables.totalOutstanding)}* from ${receivables.shopsWithDues} shop${receivables.shopsWithDues !== 1 ? "s" : ""}\n` +
         (receivables.overdue30 > 0 ? `⏳ Over 30 days: *${fmt(receivables.overdue30)}*\n` : "") +
-        (paidToday > 0 ? `💰 Collected today: *${fmt(paidToday)}*\n` : "") +
+        (paidToday > 0 ? `💰 Collected: *${fmt(paidToday)}*\n` : "") +
         (topDebtors.length > 0
           ? topDebtors
               .map((d) => `• ${escapeMd(d.shopName)}: ${fmt(Number(d.balance))}`)
@@ -143,7 +153,7 @@ export async function buildDailyReport(): Promise<string> {
   if (saleCount === 0) {
     return (
       header +
-      `\n\n_No sales recorded today._\n\n` +
+      `\n\n_No sales recorded._\n\n` +
       creditSection +
       `━━━━━━━━━━━━━━━━━━━━`
     );
@@ -169,7 +179,7 @@ export async function buildDailyReport(): Promise<string> {
 
   const salesSection =
     `━━━━━━━━━━━━━━━━━━━━\n` +
-    `🛒 *TODAY'S SALES*\n\n` +
+    `🛒 *SALES*\n\n` +
     salesLines +
     (hiddenCount > 0 ? `\n\n_...and ${hiddenCount} more transaction${hiddenCount > 1 ? "s" : ""}_` : "");
 
@@ -200,7 +210,7 @@ export async function buildDailyReport(): Promise<string> {
   );
   const lostSection = lostStock.length > 0
     ? `━━━━━━━━━━━━━━━━━━━━\n` +
-      `📉 *WRITTEN OFF TODAY*\n` +
+      `📉 *WRITTEN OFF*\n` +
       (lostValue > 0 ? `Cost not recoverable: *${fmt(lostValue)}*\n` : "") +
       (claimedValue > 0 ? `🚚 Claimed from suppliers: *${fmt(claimedValue)}*\n` : "") +
       lostStock.map((m) => {

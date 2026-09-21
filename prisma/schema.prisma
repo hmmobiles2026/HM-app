@@ -438,6 +438,36 @@ model TelegramConfig {
   webhookSecret String
   isActive      Boolean  @default(true)
   updatedAt     DateTime @updatedAt
+
+  // ── What gets sent ────────────────────────────────────────────────────────
+  notifySale     Boolean @default(true)
+  notifyLowStock Boolean @default(true)
+  notifyStockIn  Boolean @default(true)
+
+  // ── The end-of-day jobs ───────────────────────────────────────────────────
+  // These can be switched off from Settings, but NOT rescheduled: Vercel reads cron
+  // times from vercel.json at deploy time and offers no way to change them from the
+  // app. Both are pinned to the end of the Sri Lanka day so the report covers a
+  // complete day. A time field here would be a control that silently does nothing.
+  dailyReportEnabled Boolean @default(true)
+  autoBackupEnabled  Boolean @default(true)
+
+  // Sri Lanka date the job last covered. Claimed before sending, so a Vercel retry
+  // cannot deliver the same report twice.
+  lastDailyReportOn String?
+  lastAutoBackupOn  String?
+
+  // ── Quiet hours: suppress live alerts overnight ───────────────────────────
+  // Live sale / low stock / stock-in alerts only. The end-of-day report and backup
+  // always run — they are the summary of the day that just finished.
+  //
+  // The default window starts at 01:30, NOT at 22:00 as an overnight window normally
+  // would: this shop takes roughly two thirds of its sales between 22:00 and
+  // midnight, so a 22:00 start would silence the alerts for its busiest hours the
+  // moment anyone switched quiet hours on.
+  quietHoursEnabled Boolean @default(false)
+  quietFrom         String  @default("01:30")
+  quietTo           String  @default("10:00")
 }
 
 model TelegramLog {
