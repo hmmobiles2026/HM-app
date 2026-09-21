@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { LEDGER_SIGN, roundMoney } from "@/lib/credit-math";
+import { LEDGER_SIGN, roundMoney, balanceOf } from "@/lib/credit-math";
 
 /**
  * Printable statement of account for one customer.
@@ -24,6 +24,44 @@ const MAKER = {
   product: "POS Systems",
   contact: "kavindesh518716@gmail.com",
 };
+
+/**
+ * The shop's day, not UTC's. Sri Lanka is UTC+5:30, so anything rung up after
+ * 6:30pm local already belongs to the next UTC day — filtering on UTC dates would
+ * silently drop or borrow entries around every evening.
+ */
+const SL_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/** Midnight of an SL calendar date, expressed as the UTC instant it happens. */
+function slDayStart(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d) - SL_OFFSET_MS);
+}
+
+function todayInSL(): string {
+  return new Date(Date.now() + SL_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** Accepts YYYY-MM-DD only; anything else falls back rather than erroring. */
+function parseDate(v: string | null, fallback: string): string {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return fallback;
+  const [y, m, d] = v.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return Number.isNaN(dt.getTime()) ? fallback : v;
+}
+
+const prettyDate = (dateStr: string) =>
+  new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("en-LK", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
 function esc(s: string): string {
   return s
@@ -64,7 +102,7 @@ const methodName: Record<string, string> = {
 };
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   await verifySession();
@@ -73,10 +111,41 @@ export async function GET(
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) return new Response("Customer not found", { status: 404 });
 
+  const today = todayInSL();
+  const qs = req.nextUrl.searchParams;
+  let from = parseDate(qs.get("from"), today);
+  let to = parseDate(qs.get("to"), today);
+  // A range entered backwards is a slip, not an error worth refusing.
+  if (from > to) [from, to] = [to, from];
+
+  const rangeStart = slDayStart(from);
+  const rangeEnd = slDayStart(addDays(to, 1)); // exclusive
+
+  // Everything before the range collapses into one opening figure. Without it the
+  // running balance in a filtered statement would not reach the balance due.
+  const priorGroups = await prisma.customerLedger.groupBy({
+    by: ["type"],
+    where: { customerId: id, createdAt: { lt: rangeStart } },
+    _sum: { amount: true },
+  });
+  const broughtForward = balanceOf(
+    priorGroups.map((g) => ({ type: g.type, amount: g._sum.amount?.toNumber() ?? 0 }))
+  );
+
   const entries = await prisma.customerLedger.findMany({
-    where: { customerId: id },
+    where: { customerId: id, createdAt: { gte: rangeStart, lt: rangeEnd } },
     orderBy: { createdAt: "asc" },
   });
+
+  // Powers the "Whole history" shortcut in the toolbar.
+  const firstEntry = await prisma.customerLedger.findFirst({
+    where: { customerId: id },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+  const firstEntryDate = firstEntry
+    ? new Date(firstEntry.createdAt.getTime() + SL_OFFSET_MS).toISOString().slice(0, 10)
+    : today;
 
   const saleIds = [...new Set(entries.filter((e) => e.saleId).map((e) => e.saleId!))];
   const returnIds = [...new Set(entries.filter((e) => e.returnId).map((e) => e.returnId!))];
@@ -108,7 +177,7 @@ export async function GET(
   const returnById = new Map(returns.map((r) => [r.id, r]));
 
   // ── Rows ──────────────────────────────────────────────────────────────────
-  let running = 0;
+  let running = broughtForward;
   let charged = 0;
   let paid = 0;
   let credited = 0;
@@ -246,6 +315,8 @@ export async function GET(
   .tag.payment { background:#e3f4ea; color:#0f7a45; }
   .tag.return_credit { background:#fdf0e0; color:#9a5b0a; }
   .tag.adjustment { background:#f0eafb; color:#6b3fb5; }
+  .tag.opening { background:#eceff1; color:#55646d; }
+  tr.opening > td { background:#fafcfc; }
   .ref { font-weight:650; }
   .warranty { color:#78868f; font-size:11px; }
 
@@ -270,12 +341,21 @@ export async function GET(
   .maker { text-align:right; }
   .maker b { color:#15202b; font-size:10.5px; }
 
-  .bar { max-width:820px; margin:14px auto 0; display:flex; gap:8px; justify-content:flex-end; }
-  .bar button { font: inherit; font-weight:650; padding:8px 16px; border-radius:4px; border:1px solid #0b6e7f; background:#0b6e7f; color:#fff; cursor:pointer; }
+  .bar { max-width:820px; margin:14px auto 0; display:flex; gap:8px; justify-content:flex-end; align-items:center; flex-wrap:wrap; }
+  .bar label { font-size:11px; color:#66757f; display:flex; align-items:center; gap:5px; }
+  .bar input[type=date] { font: inherit; font-size:12px; padding:6px 8px; border-radius:4px; border:1px solid #cfd8dd; background:#fff; color:#15202b; }
+  .bar button, .bar a { font: inherit; font-size:12px; font-weight:650; padding:7px 14px; border-radius:4px; border:1px solid #0b6e7f; background:#0b6e7f; color:#fff; cursor:pointer; text-decoration:none; }
+  .bar .ghost { background:#fff; color:#0b6e7f; }
   @media print { .bar { display:none; } body { background:#fff; } .sheet { box-shadow:none; margin:0; max-width:none; padding:0; } }
 </style></head>
 <body>
-<div class="bar"><button onclick="window.print()">Print / Save as PDF</button></div>
+<form class="bar" method="get">
+  <label>From <input type="date" name="from" value="${from}" max="${today}"></label>
+  <label>To <input type="date" name="to" value="${to}" max="${today}"></label>
+  <button type="submit" class="ghost">Apply</button>
+  <a class="ghost" href="?from=${firstEntryDate}&to=${today}">Whole history</a>
+  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+</form>
 <div class="sheet">
 
   <div class="top">
@@ -297,13 +377,14 @@ export async function GET(
       ${customer.address ? `<p class="sub">${esc(customer.address)}</p>` : ""}
     </div>
     <div style="text-align:right">
-      <p class="label">Entries</p>
-      <p class="who">${entries.length}</p>
-      <p class="sub">${entries.length ? `${day(entries[0].createdAt)} – ${day(entries[entries.length - 1].createdAt)}` : "No activity"}</p>
+      <p class="label">Period</p>
+      <p class="who">${esc(prettyDate(from))}${from === to ? "" : ` – ${esc(prettyDate(to))}`}</p>
+      <p class="sub">${entries.length} ${entries.length === 1 ? "entry" : "entries"}</p>
     </div>
   </div>
 
   <div class="cards">
+    <div class="card"><div class="k">Brought forward</div><div class="v">${money(roundMoney(broughtForward))}</div></div>
     <div class="card"><div class="k">Goods supplied</div><div class="v">${money(roundMoney(charged))}</div></div>
     <div class="card"><div class="k">Payments received</div><div class="v">${money(roundMoney(paid))}</div></div>
     <div class="card"><div class="k">Returns credited</div><div class="v">${money(roundMoney(credited))}</div></div>
@@ -318,12 +399,19 @@ export async function GET(
   <table class="ledger">
     <thead><tr><th>Date</th><th>Details</th><th class="amt">Amount</th><th class="bal">Balance</th></tr></thead>
     <tbody>
-      ${rows.join("") || `<tr class="entry"><td colspan="4"><em>No transactions recorded.</em></td></tr>`}
+      <tr class="entry opening">
+        <td class="date">${esc(prettyDate(from))}</td>
+        <td class="kind"><span class="tag opening">Brought forward</span><div class="ref">Balance carried in from before this period</div></td>
+        <td class="amt"></td>
+        <td class="bal">${money(roundMoney(broughtForward))}</td>
+      </tr>
+      ${rows.join("") || `<tr class="entry"><td colspan="4"><em>No transactions in this period.</em></td></tr>`}
     </tbody>
   </table>
 
   <div class="totals">
     <table>
+      <tr><td class="k">Balance brought forward</td><td class="v">${money(roundMoney(broughtForward))}</td></tr>
       <tr><td class="k">Goods supplied</td><td class="v">${money(roundMoney(charged))}</td></tr>
       ${
         roundMoney(adjusted) !== 0
@@ -332,7 +420,7 @@ export async function GET(
       }
       <tr><td class="k">Less payments received</td><td class="v">− ${money(roundMoney(paid))}</td></tr>
       <tr><td class="k">Less returns credited</td><td class="v">− ${money(roundMoney(credited))}</td></tr>
-      <tr class="grand"><td class="k">${outstanding < 0 ? "Paid in advance" : "Balance due"}</td><td class="v">LKR ${money(Math.abs(outstanding))}</td></tr>
+      <tr class="grand"><td class="k">${outstanding < 0 ? "Paid in advance" : "Balance due"} as at ${esc(prettyDate(to))}</td><td class="v">LKR ${money(Math.abs(outstanding))}</td></tr>
     </table>
   </div>
 
