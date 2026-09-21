@@ -59,7 +59,11 @@ export async function POST(req: NextRequest) {
       ? `🔒 *HM Stocks bot is deactivated.*\n\nPlease contact HM Stocks support to reactivate.`
       : license.trialNotStarted
         ? `🔒 *HM Stocks bot is not activated yet.*\n\nAn admin needs to start the free trial in Settings → License.`
-        : `🔒 *HM Stocks license has expired.*\n\nThe bot cannot answer until it is renewed. Contact HM Stocks support — LKR 2,000 for 3 months.`;
+        : `🔒 *HM Stocks license has expired.*\n\nThe bot cannot answer until it is renewed. ${
+            license.supportContact
+              ? `Contact ${escapeMd(license.supportContact)}`
+              : "Contact HM Stocks support"
+          } — ${escapeMd(license.renewalText)}.`;
 
     await sendTelegramMessage(config.botToken, chatId, reason, "Markdown").catch(() => {});
     await prisma.telegramLog

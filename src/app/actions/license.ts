@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { validateLicenseKey } from "@/lib/license";
 import { broadcastTelegramMessage } from "@/lib/telegram";
+import { DEFAULT_RENEWAL_TEXT } from "@/lib/license";
 import { verifyRole } from "@/lib/dal";
 
 export type LicenseActionState = { error?: string; success?: string } | undefined;
@@ -116,13 +117,17 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
   ]);
 
   // Send final payment reminder (outgoing sendMessage is unaffected by webhook state)
+  // Suspension is always announced — telegramReminders only governs the routine
+  // "expires soon" nudges, not the moment access is cut off.
   if (config) {
+    const renewal = license.renewalText?.trim() || DEFAULT_RENEWAL_TEXT;
+    const contact = license.supportContact?.trim();
     await broadcastTelegramMessage(
       config,
       `⚠️ *HM Stocks — Access Suspended*\n\n` +
       `Your access has been suspended.\n\n` +
-      `Pay *LKR 2,000* to reactivate for 3 months.\n\n` +
-      `Contact HM Stocks support to make payment.`,
+      `Pay *${renewal}* to reactivate.\n\n` +
+      (contact ? `Contact ${contact} to make payment.` : `Contact HM Stocks support to make payment.`),
       "Markdown"
     );
   }
@@ -130,4 +135,48 @@ export async function deactivateLicense(): Promise<LicenseActionState> {
   revalidatePath("/settings");
   revalidatePath("/dashboard");
   return { success: "License deactivated. All Telegram features are now stopped." };
+}
+
+/**
+ * Renewal reminder settings. Admin only — the shop owner is OWNER, so they cannot
+ * silence the reminders for their own licence.
+ */
+export async function updateLicenseNotice(
+  _state: LicenseActionState,
+  formData: FormData
+): Promise<LicenseActionState> {
+  await verifyRole(["ADMIN"]);
+
+  const license = await prisma.appLicense.findFirst();
+  if (!license) return { error: "No license record found." };
+
+  const days = Number(formData.get("warnDaysBefore"));
+  if (!Number.isInteger(days) || days < 0 || days > 180) {
+    return { error: "Reminder days must be between 0 and 180." };
+  }
+
+  const audience = String(formData.get("warningAudience") ?? "EVERYONE");
+  if (!["EVERYONE", "OWNER_ADMIN", "NOBODY"].includes(audience)) {
+    return { error: "Choose who should see the reminder." };
+  }
+
+  await prisma.appLicense.update({
+    where: { id: license.id },
+    data: {
+      warnDaysBefore: days,
+      warningAudience: audience as "EVERYONE" | "OWNER_ADMIN" | "NOBODY",
+      telegramReminders: formData.get("telegramReminders") === "true",
+      renewalText: (formData.get("renewalText") as string)?.trim() || null,
+      supportContact: (formData.get("supportContact") as string)?.trim() || null,
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  return {
+    success:
+      days === 0
+        ? "Saved. The expiry reminder is switched off."
+        : `Saved. Reminder starts ${days} days before expiry.`,
+  };
 }

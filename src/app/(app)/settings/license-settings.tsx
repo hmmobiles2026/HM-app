@@ -1,4 +1,5 @@
 "use client";
+import { LicenseNoticeSettings } from "./license-notice-settings";
 
 import { useActionState, useState } from "react";
 import { activateLicense, deactivateLicense, generateLicenseKey, startFreeTrial } from "@/app/actions/license";
@@ -233,6 +234,15 @@ export function LicenseSettings({ status, isAdmin }: { status: LicenseStatus; is
             </Button>
           </form>
         </div>
+      )}
+      {isAdmin && (
+        <LicenseNoticeSettings
+          warnDaysBefore={status.warnDaysBefore}
+          warningAudience={status.warningAudience}
+          telegramReminders={status.telegramReminders}
+          renewalText={status.renewalText}
+          supportContact={status.supportContact}
+        />
       )}
     </div>
   );

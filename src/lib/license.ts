@@ -4,7 +4,12 @@ import { createHmac } from "crypto";
 import { addMonths } from "date-fns";
 
 const TRIAL_MONTHS = 4;
+
+/** Used when nothing has been set in Settings. */
+export const DEFAULT_RENEWAL_TEXT = "LKR 2,000 for 3 months";
 const LICENSE_SECRET = process.env.LICENSE_SECRET ?? "";
+
+export type LicenseNoticeAudience = "EVERYONE" | "OWNER_ADMIN" | "NOBODY";
 
 export type LicenseStatus = {
   active: boolean;
@@ -14,8 +19,31 @@ export type LicenseStatus = {
   expiresAt: Date;
   daysLeft: number;
   expired: boolean;
+  /** Within the configured reminder window. Always false when warnDaysBefore is 0. */
   warningSoon: boolean;
+  warnDaysBefore: number;
+  warningAudience: LicenseNoticeAudience;
+  telegramReminders: boolean;
+  renewalText: string;
+  supportContact: string | null;
 };
+
+/**
+ * Whether this person should see the "expires soon" warning.
+ *
+ * Only the warning is configurable. The EXPIRED notice always shows — when a licence
+ * lapses the bot goes quiet and notifications stop, and hiding the reason just turns
+ * a renewal into a support call.
+ */
+export function canSeeLicenseWarning(status: LicenseStatus, role: string): boolean {
+  // Answer honestly on its own. Callers currently pair this with warningSoon, but a
+  // function named "canSee..." that returns true while reminders are switched off is
+  // a trap for the next caller.
+  if (status.warnDaysBefore <= 0) return false;
+  if (status.warningAudience === "NOBODY") return false;
+  if (status.warningAudience === "OWNER_ADMIN") return role === "ADMIN" || role === "OWNER";
+  return true;
+}
 
 export async function getLicenseStatus(): Promise<LicenseStatus> {
   let license = await prisma.appLicense.findFirst();
@@ -25,14 +53,22 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
 
   const now = new Date();
 
+  const notice = {
+    warnDaysBefore: license.warnDaysBefore,
+    warningAudience: license.warningAudience as LicenseNoticeAudience,
+    telegramReminders: license.telegramReminders,
+    renewalText: license.renewalText?.trim() || DEFAULT_RENEWAL_TEXT,
+    supportContact: license.supportContact?.trim() || null,
+  };
+
   // forceDeactivated flag OR old sentinel value (licensedUntil set to epoch by previous code)
   const isForceDeactivated = license.forceDeactivated || license.licensedUntil?.getTime() === 0;
   if (isForceDeactivated) {
-    return { active: false, isTrial: false, trialNotStarted: false, forceDeactivated: true, expiresAt: now, daysLeft: 0, expired: true, warningSoon: false };
+    return { active: false, isTrial: false, trialNotStarted: false, forceDeactivated: true, expiresAt: now, daysLeft: 0, expired: true, warningSoon: false, ...notice };
   }
 
   if (!license.trialStartedAt && !license.licensedUntil) {
-    return { active: false, isTrial: true, trialNotStarted: true, forceDeactivated: false, expiresAt: now, daysLeft: 0, expired: false, warningSoon: false };
+    return { active: false, isTrial: true, trialNotStarted: true, forceDeactivated: false, expiresAt: now, daysLeft: 0, expired: false, warningSoon: false, ...notice };
   }
 
   const trialEnd = license.trialStartedAt ? addMonths(license.trialStartedAt, TRIAL_MONTHS) : now;
@@ -46,7 +82,10 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
   const active = now < expiresAt;
   const daysLeft = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / 86400000));
 
-  return { active, isTrial, trialNotStarted: false, forceDeactivated: false, expiresAt, daysLeft, expired: !active, warningSoon: daysLeft < 30 };
+  // 0 days means the vendor has switched the reminder off entirely.
+  const warningSoon = notice.warnDaysBefore > 0 && daysLeft < notice.warnDaysBefore;
+
+  return { active, isTrial, trialNotStarted: false, forceDeactivated: false, expiresAt, daysLeft, expired: !active, warningSoon, ...notice };
 }
 
 export function validateLicenseKey(key: string): { valid: boolean; expiresAt?: Date; error?: string } {
